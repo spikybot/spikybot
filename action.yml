@@ -122,7 +122,8 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
         . ~/.profile
-        cat claude-prompt.txt | claude -p --output-format stream-json --verbose | jq --unbuffered -r '.. | objects | (
+        cat claude-prompt.txt | claude -p --output-format stream-json --verbose | jq --unbuffered -r '
+        .. | objects | to_entries[] | (
           .type?,
           .text?,
           .content?,
@@ -133,4 +134,4 @@ runs:
           .name?,
           .result?,
           .total_cost?
-        ) | select(type=="string" or type=="number")'
+        ) | select(type=="string" or type=="number") | "\(.key): \(.value)"''
