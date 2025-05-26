@@ -1,4 +1,4 @@
-# SpiceEngine Action
+# SpiceEngine Claude Code Action
 
 Autonomous coding assistant running on GitHub Actions with Claude Code
 
