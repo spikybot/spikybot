@@ -1,13 +1,13 @@
 # SpiceEngine Action
 
-GitHub Actions対応の自律型コーディングアシスタント
+Autonomous coding assistant running on GitHub Actions with Claude Code
 
-## 必要な環境
+## Required Environment
 
 - Claude CLI (`claude`)
 - GitHub CLI (`gh`)
 
-## 使用方法
+## Usage
 
 ```yaml
 - uses: spiceengine/action@main
