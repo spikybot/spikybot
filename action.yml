@@ -125,6 +125,11 @@ runs:
         cat claude-prompt.txt | claude -p --output-format stream-json --verbose | jq -r '.. | objects | to_entries[] | select(.key | IN(
           "type",
           "text",
+          "model",
+          "input_tokens",
+          "cache_creation_input_tokens",
+          "cache_read_input_tokens",
+          "output_tokens",
           "content",
           "query",
           "command",
