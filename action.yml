@@ -1,5 +1,5 @@
-name: 'SpiceEngine Action'
-description: 'SpiceEngine環境でGitHub Actionsで動作する自律型コーディングアシスタント'
+name: 'SpiceEngine Claude Code Action'
+description: 'Autonomous coding assistant running on GitHub Actions with Claude Code'
 author: 'SpiceEngine'
 inputs:
   github-token: {description: 'GitHub Token', required: true}
@@ -90,7 +90,7 @@ runs:
            - ユーザーからの指示があった場合には自動でセッションが継続される
            - 現在のセッションは終了する
         重要なガイドライン:
-        - 常に日本語でコミュニケーションを取る
+        - 常にユーザーの入力テキストと同じ言語でコミュニケーションを取る
         - 積極的で自律的なアプローチを取る
         - 全てのGitHub操作には適切なGitHub CLIコマンドを使用
         - 要求された場合は実際にリポジトリに変更を加える
