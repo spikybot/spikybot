@@ -10,7 +10,7 @@ GitHub Actions対応の自律型コーディングアシスタント
 ## 使用方法
 
 ```yaml
-- uses: spiceengine/action@v1
+- uses: spiceengine/action@main
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
