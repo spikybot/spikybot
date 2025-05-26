@@ -122,7 +122,7 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
         . ~/.profile
-        cat claude-prompt.txt | claude -p --output-format stream-json --verbose | jq -r '.. | objects | (
+        cat claude-prompt.txt | claude -p --output-format stream-json --verbose | jq --unbuffered -r '.. | objects | (
           .type?,
           .text?,
           .content?,
