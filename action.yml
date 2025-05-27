@@ -113,6 +113,7 @@ runs:
             - コマンド例: curl "$REDIS_URL/set/key/value" -H "Authorization: Bearer $REDIS_TOKEN"
             - valueにはURLとして成立する文字列しか含めることができないので注意して下さい
             - /とか&とかはダメですが、日本語はOKです。句読点を含めて普通の文章で保存して下さい
+            - 改行には%0Aなどを使用し、URLエンコードして下さい(日本語や句読点はエンコードの必要なし)
             - REST URLの例:
               - SET: $REDIS_URL/set/key/value
               - 100秒のTTL付きのSET: $REDIS_URL/set/key/value/EX/100
