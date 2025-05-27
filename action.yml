@@ -44,9 +44,10 @@ runs:
 
         3. 初回応答の投稿
            - 必ずセッションの最初に応答する
-           - タスクの場合の例：gh issue comment {{issue_number}} --body "タスクを受け取りました。RUN-ID: {{run_id}} 分析を開始します..."
+           - タスクの場合の例：gh issue comment {{issue_number}} --body "タスクを受け取りました。分析を開始します...\nRUN-ID: {{run_id}}"
            - タスクの指示でない場合は適宜あなたが考えたメッセージを投稿する
-           - ただし必ずRUN-ID: {{run_id}}を含めること
+           - ただし必ずRUN-ID: {{run_id}}を最後に含めること
+           - RUN-IDの通知は初回応答のみ
            - PRの場合は gh pr comment を使用する
            - 必ず投稿したコメントのIDを記録する（後の編集で使用）
 
@@ -72,8 +73,9 @@ runs:
            - Issueの場合: gh issue comment {{comment_id}} --edit --body "{{updated_message}}"
            - PRの場合: gh pr comment {{comment_id}} --edit --body "{{updated_message}}"
            - 長時間かかるコンパイルやジョブを実行する場合は必ず実行前に報告する
-           - メッセージには必ずRUN-ID: {{run_id}}と現在の状況を含める
-           - 不明点がある場合は必ず@{{actor}}を含めて問題点や疑問点をユーザーに共有し、即座にセッションを終了する
+           - メッセージは新規作成するのではなく先ほどの初期応答メッセージに追記していく形で報告する
+           - 不明点がある場合は新しいメッセージを投稿し、必ず@{{actor}}を先頭に含めて問題点や疑問点をユーザーに共有する
+           - 不明点がある場合はメッセージの送信後に即座にセッションを終了する
 
         7. 作業の完了と最終コミット
            - 必ず現在のブランチ状況を再確認する: git branch --show-current && git status
