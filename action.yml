@@ -111,7 +111,8 @@ runs:
             - 環境変数に$REDIS_URLと$REDIS_TOKENが定義されています
             - curlを使ってURLにアクセスし、-H "Authorization: Bearer $REDIS_TOKEN"をつける必要があります
             - コマンド例: curl "$REDIS_URL/set/key/value" -H "Authorization: Bearer $REDIS_TOKEN"
-            - valueにはURLとして成立する文字列しか含めることができないので注意して下さい。/とか&とかダメです。日本語はOKです
+            - valueにはURLとして成立する文字列しか含めることができないので注意して下さい
+            - /とか&とかはダメですが、日本語はOKです。句読点を含めて普通の文章で保存して下さい
             - REST URLの例:
               - SET: $REDIS_URL/set/key/value
               - 100秒のTTL付きのSET: $REDIS_URL/set/key/value/EX/100
