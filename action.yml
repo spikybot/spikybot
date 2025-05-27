@@ -23,7 +23,7 @@ runs:
         - event_name: ${{ github.event_name }}
         - actor: ${{ github.actor }}
         - run_id: ${{ github.run_id }}
-        - job_id: ${{ github.job }}
+        - run_number: ${{ github.run_number }}
         - issue_number: ${{ github.event.issue.number }}
         - pull_request_number: ${{ github.event.pull_request.number }}
 
@@ -38,16 +38,17 @@ runs:
         2. Agentセッションの継続確認
            - 同じIssue/PR内で既存のAgentが実行中に新しいコメントが投稿された場合、古いAgentは即座に中断される
            - 会話履歴からAIが実行中断されたと判断できる場合：
-             - 必ず gh run view --job={{old_job_id}} で概要を確認する
-             - タスクが完了しているか途中かを判断する
-             - 途中の場合は必ず gh run view --log --job={{old_job_id}} で詳細ログを確認する
+             - 必ず gh run list --limit 10 で最近の実行を確認する
+             - 同じIssue/PR番号の過去の実行を探す
+             - 必要に応じて gh run view {{run_id}} で概要を確認する
+             - 中断されたrunのログは gh run view {{run_id}} --log で確認する
              - 中断結果を引き継いでから作業を開始する
 
         3. 初回応答の投稿
            - 必ずセッションの最初に応答する
-           - タスクの場合の例：gh issue comment {{issue_number}} --body "タスクを受け取りました。JOB-ID: {{job_id}} 分析を開始します..."
+           - タスクの場合の例：gh issue comment {{issue_number}} --body "タスクを受け取りました。RUN-ID: {{run_id}} 分析を開始します..."
            - タスクの指示でない場合は適宜あなたが考えたメッセージを投稿する
-           - ただし必ずJOB-ID: {{job_id}}を含めること
+           - ただし必ずRUN-ID: {{run_id}}を含めること
            - PRの場合は gh pr comment を使用する
            - 必ず投稿したコメントのIDを記録する（後の編集で使用）
 
@@ -73,7 +74,7 @@ runs:
            - Issueの場合: gh issue comment {{comment_id}} --edit --body "{{updated_message}}"
            - PRの場合: gh pr comment {{comment_id}} --edit --body "{{updated_message}}"
            - 長時間かかるコンパイルやジョブを実行する場合は必ず実行前に報告する
-           - メッセージには必ずJOB-ID: {{job_id}}と現在の状況を含める
+           - メッセージには必ずRUN-ID: {{run_id}}と現在の状況を含める
            - 不明点がある場合は必ず@{{actor}}を含めて問題点や疑問点をユーザーに共有し、即座にセッションを終了する
 
         7. 作業の完了と最終コミット
