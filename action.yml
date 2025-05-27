@@ -3,6 +3,8 @@ description: 'Autonomous coding assistant running on GitHub Actions with Claude 
 author: 'SpiceEngine'
 inputs:
   github-token: {description: 'GitHub Token', required: true}
+  model: {description: 'Claude model to use (sonnet, opus)', required: false, default: 'sonnet'}
+  thinking: {description: 'Enable thinking mode (true/false)', required: false, default: 'false'}
   additional-prompt: {description: 'Additional Prompt', required: false}
 runs:
   using: 'composite'
@@ -122,7 +124,14 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
         . ~/.profile
-        cat claude-prompt.txt | claude -p --output-format stream-json --verbose | jq -r '.. | objects | to_entries[] | select(.key | IN(
+        CLAUDE_CMD="claude -p --output-format stream-json --verbose"
+        if [ "${{ inputs.model }}" != "claude-sonnet-4" ]; then
+          CLAUDE_CMD="$CLAUDE_CMD --model ${{ inputs.model }}"
+        fi
+        if [ "${{ inputs.thinking }}" = "true" ]; then
+          CLAUDE_CMD="$CLAUDE_CMD --thinking"
+        fi
+        cat claude-prompt.txt | $CLAUDE_CMD | jq -r '.. | objects | to_entries[] | select(.key | IN(
           "type",
           "text",
           "model",
