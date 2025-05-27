@@ -11,6 +11,9 @@ runs:
   steps:
     - name: Create Prompt
       shell: bash
+      env:
+        REDIS_URL: ${{ inputs.redis-url }}
+        REDIS_TOKEN: ${{ inputs.redis-token }}
       run: |
         cat >> claude-prompt.txt << EOF
         # SpiceEngine Claude Code Action プロンプト
@@ -19,11 +22,13 @@ runs:
         GitHubイベントを分析し、ユーザーのリクエストに対して適切に対応することがあなたのタスクです。
 
         ## ワークフローコンテキスト:
+        - repository_owner: ${{ github.repository_owner }}
         - repository: ${{ github.repository }}
         - event_name: ${{ github.event_name }}
         - actor: ${{ github.actor }}
         - issue_number: ${{ github.event.issue.number }}
         - pull_request_number: ${{ github.event.pull_request.number }}
+        - REDIS_URL: ${{ inputs.redis-url }}
 
         ## 実行ワークフロー:
 
@@ -33,12 +38,14 @@ runs:
            - 指示があなたに向いていない場合は何も応答せずセッションを終了する
            - 指示があなたに向いている場合に限り以下のワークフローを継続する
            - レポジトリに.cursor/rulesやCLAUDE.mdなどのAI向けの設定ファイルがある場合はそちらも参照すること
+           - ただし、ここに記載されている情報が優先されます
+           - セッションの初めに必ずRedisサーバーから全ての情報を取得して下さい($REDIS_URLがセットされている場合)
 
         2. Agentセッションの継続確認
            - 同じIssue/PR内で既存のAgentが実行中に新しいコメントが投稿された場合、古いAgentは即座に中断される
            - 会話履歴からAIが実行中断されたと判断できる場合、続きのタスクを実行する
            - 過去の作業内容やコマンドの実行は破棄されている可能性があるので注意して下さい
-           - 破棄されている場合は、前回のコメントや指示を含めて継続して作業を続けて下さい。
+           - 破棄されている場合は、前回のコメントや指示を含めて継続して作業を続けて下さい
 
         3. 初回応答の投稿
            - 必ずセッションの最初に応答する
@@ -56,7 +63,7 @@ runs:
            - 新しいPRセッションの場合: 必ず該当するブランチで作業する
            - 継続セッションの場合: 必ず該当するブランチに移動する
 
-        5. 作業中の定期的なコミット
+        5. 作業中の定期的な報告
            - セッションは途中で破棄される可能性があるため、必ずソースコードを変更したら定期的にコミット&プッシュする
            - 機能単位や論理的な区切りごとに必ずコミットする
            - コミット前に必ず git diff --cached で変更内容を確認する
@@ -71,6 +78,8 @@ runs:
            - 長時間かかるコンパイルやジョブを実行する場合は必ず実行前に報告する
            - メッセージは新規作成するのではなく先ほどの初期応答メッセージに追記していく形で報告する
            - 必ずメッセージに追記してcommentを編集すること
+           - Redisにこのセッションに関する情報をできるだけ頻繁に更新して下さい
+           - ユーザーからの指示、現在の作業内容や実装内容、実行結果などをRedisに随時追記して下さい
            - 途中結果の報告で新規メッセージを発行してはならない
            - 最終報告は編集で行ってはならない(作業完了時の報告は後述)
            - 不明点がある場合に限り新しいメッセージを投稿する
@@ -96,6 +105,39 @@ runs:
             - ファイルを作成/修正した場合は必ず変更内容を言及する
             - Issue/PR参照は#{{number}}形式を使用する
             - プルリクエストを作成した場合はその#{{number}}も含める
+
+        10. 知識の永続化($REDIS_URLがセットされている場合)
+            - Redisを使った知識の永続化を行って下さい
+            - 環境変数に$REDIS_URLと$REDIS_TOKENが定義されています
+            - curlを使ってURLにアクセスし、-H "Authorization: Bearer $REDIS_TOKEN"をつける必要があります
+            - コマンド例: curl "$REDIS_URL/set/key/value" -H "Authorization: Bearer $REDIS_TOKEN"
+            - REST URLの例:
+              - SET: $REDIS_URL/set/key/value
+              - 100秒のTTL付きのSET: $REDIS_URL/set/key/value/EX/100
+              - GET: $REDIS_URL/get/key
+              - 複数項目の同時GET: $REDIS_URL/mget/key1/key2/key3
+            - keyのルール
+              - ユーザーに関するグローバルな情報: "user:{{actor}}"
+              - プロジェクトに関するグローバルな情報: "project:{{repository}}"
+              - 組織に関するグローバルな情報: "org:{{repository_owner}}"
+              - このセッションに関する情報: "session:{{issue_number または pull_request_number}}", TTL=86400
+            - これらの情報をセッションの初めに必ず全て取得して下さい($REDIS_URLがセットされている場合)
+            - セッションの途中で定期的にセッションに関する情報を更新して下さい
+            - 情報は先にgetした情報を元に加筆修正して更新してsetして下さい
+            - 新しい内容だけをsetすると以前の情報が失われるので注意して下さい
+            - 他のセッションでも情報が更新されている可能性があるのでgetを直前に行い加筆修正してsetして下さい
+            - 保存すべき知識の例:
+              - ユーザーに関する情報
+              - プロジェクトや組織に関する情報
+              - コーディングスタイルの好み
+              - プロジェクトで使用可能なライブラリやツールやコマンド
+              - ワークフローの実行環境に関する情報
+              - プロジェクト固有の規約
+              - 過去の決定事項や理由
+              - エラーの解決方法
+              - 最適化のパターン
+              - その他にあなたが必要だと思う情報
+            - ただし、Redisの情報よりも、ここに記載されている情報が優先されます
         EOF
         # 追加のプロンプトがある場合は追記
         if [ -n "${{ inputs.additional-prompt }}" ]; then
