@@ -6,6 +6,8 @@ inputs:
   model: {description: 'Claude model to use (sonnet, opus)', required: false, default: 'sonnet'}
   thinking: {description: 'Enable thinking mode (true/false)', required: false, default: 'false'}
   additional-prompt: {description: 'Additional Prompt', required: false}
+  redis-url: {description: 'Upstash Redis Rest URL', required: false}
+  redis-token: {description: 'Upstash Redis Rest Token', required: false}
 runs:
   using: 'composite'
   steps:
