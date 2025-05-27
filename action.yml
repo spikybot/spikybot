@@ -13,9 +13,6 @@ runs:
   steps:
     - name: Create Prompt
       shell: bash
-      env:
-        REDIS_URL: ${{ inputs.redis-url }}
-        REDIS_TOKEN: ${{ inputs.redis-token }}
       run: |
         cat >> claude-prompt.txt << EOF
         # SpiceEngine Claude Code Action プロンプト
@@ -163,6 +160,8 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
+        REDIS_URL: ${{ inputs.redis-url }}
+        REDIS_TOKEN: ${{ inputs.redis-token }}
       run: |
         . ~/.profile
         CLAUDE_CMD="claude -p --output-format stream-json --verbose --model ${{ inputs.model }}"
