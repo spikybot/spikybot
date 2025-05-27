@@ -26,8 +26,7 @@ runs:
         - repository: ${{ github.repository }}
         - event_name: ${{ github.event_name }}
         - actor: ${{ github.actor }}
-        - issue_number: ${{ github.event.issue.number }}
-        - pull_request_number: ${{ github.event.pull_request.number }}
+        - session_id: ${{ github.event.issue.number | github.event.pull_request.number}}
         - REDIS_URL: ${{ inputs.redis-url }}
 
         ## 実行ワークフロー:
@@ -121,9 +120,9 @@ runs:
             - keyのルール
               - ユーザーに関するグローバルな情報: "user:{{actor}}"
               - ユーザーとの過去の会話記録の要約: "user:{{actor}}:history"
-              - プロジェクトに関するグローバルな情報: "project:{{repository}}"
+              - プロジェクトに関するグローバルな情報: "project:{{repository}}" # ただし/を:に置き換えること
               - 組織に関するグローバルな情報: "org:{{repository_owner}}"
-              - このセッションに関する情報: "session:{{issue_number または pull_request_number}}", TTL=86400
+              - このセッションに関する情報: "session:{{repository}}:{{session_id}}", TTL=86400 # ただし/を:に置き換えること
               - ここに記載されているkey以外へのアクセスは一切禁止です。絶対にアクセスしないで下さい
             - これらの情報をセッションの初めに必ず全て取得して下さい($REDIS_URLがセットされている場合)
             - セッションの途中で定期的にセッションに関する情報を更新して下さい
