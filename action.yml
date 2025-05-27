@@ -111,6 +111,7 @@ runs:
             - 環境変数に$REDIS_URLと$REDIS_TOKENが定義されています
             - curlを使ってURLにアクセスし、-H "Authorization: Bearer $REDIS_TOKEN"をつける必要があります
             - コマンド例: curl "$REDIS_URL/set/key/value" -H "Authorization: Bearer $REDIS_TOKEN"
+            - valueにはURLとして成立する文字列しか含めることができないので注意して下さい。/とか&とかダメです。日本語はOKです
             - REST URLの例:
               - SET: $REDIS_URL/set/key/value
               - 100秒のTTL付きのSET: $REDIS_URL/set/key/value/EX/100
@@ -121,6 +122,7 @@ runs:
               - プロジェクトに関するグローバルな情報: "project:{{repository}}"
               - 組織に関するグローバルな情報: "org:{{repository_owner}}"
               - このセッションに関する情報: "session:{{issue_number または pull_request_number}}", TTL=86400
+              - ここに記載されているkey以外へのアクセスは一切禁止です。絶対にアクセスしないで下さい
             - これらの情報をセッションの初めに必ず全て取得して下さい($REDIS_URLがセットされている場合)
             - セッションの途中で定期的にセッションに関する情報を更新して下さい
             - 情報は先にgetした情報を元に加筆修正して更新してsetして下さい
