@@ -23,7 +23,6 @@ runs:
         - event_name: ${{ github.event_name }}
         - actor: ${{ github.actor }}
         - run_id: ${{ github.run_id }}
-        - run_number: ${{ github.run_number }}
         - issue_number: ${{ github.event.issue.number }}
         - pull_request_number: ${{ github.event.pull_request.number }}
 
@@ -38,10 +37,9 @@ runs:
         2. Agentセッションの継続確認
            - 同じIssue/PR内で既存のAgentが実行中に新しいコメントが投稿された場合、古いAgentは即座に中断される
            - 会話履歴からAIが実行中断されたと判断できる場合：
-             - 必ず gh run list --limit 10 で最近の実行を確認する
-             - 同じIssue/PR番号の過去の実行を探す
-             - 必要に応じて gh run view {{run_id}} で概要を確認する
-             - 中断されたrunのログは gh run view {{run_id}} --log で確認する
+             - まず gh run view {{run_id}} で概要を確認する
+             - 前のセッションが中断されたかどうかを判断する
+             - 中断されたrunのログの全体は gh run view {{run_id}} --log で確認する
              - 中断結果を引き継いでから作業を開始する
 
         3. 初回応答の投稿
