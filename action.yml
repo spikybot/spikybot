@@ -16,10 +16,9 @@ runs:
       env:
         REDIS_URL: ${{ inputs.redis-url }}
         REDIS_TOKEN: ${{ inputs.redis-token }}
+        PROMPT_FILE: my-prompt-${{ github.runner_id }}.txt
       run: |
-        PROMPT_FILE=$(mktemp /tmp/my-prompt.XXXXXX.txt)
-        echo "PROMPT_FILE=$PROMPT_FILE" >> $GITHUB_OUTPUT
-        cat >> $PROMPT_FILE << EOF
+        cat > $PROMPT_FILE << EOF
         # SpiceEngine Claude Code Action プロンプト
         あなたはGitHub Actionsワークフロー内で動作するSpiceEngine社の自律型コーディングアシスタントです。
         GitHubイベントを分析し、ユーザーのリクエストに対して適切に対応することがあなたのタスクです。
@@ -170,10 +169,8 @@ runs:
       shell: bash -l -e {0}
       env:
         GH_TOKEN: ${{ inputs.github-token }}
-        TEST: ${{ env.PROMPT_FILE }}
+        PROMPT_FILE: my-prompt-${{ github.runner_id }}.txt
       run: |
-        echo $PROMPT_FILE
-        echo $TEST
         CLAUDE_CMD="claude -p --output-format stream-json --verbose --model ${{ inputs.model }}"
         if [ "${{ inputs.thinking }}" = "true" ]; then
           CLAUDE_CMD="$CLAUDE_CMD --thinking"
