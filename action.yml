@@ -40,7 +40,7 @@ runs:
         - RedisのGet: curl "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN"
         - URLエンコード: echo "$value" | jq -sRr @uri # Redisの$valueの生成では必ずURLエンコードを使用すること
 
-        ## Redisで使用可能なkeyの一覧(key中の/は:に変換する、全てテキストデータ)
+        ## Redisで使用可能なkeyの一覧(key中の/は:に変換する、全てテキストデータ、TTLは必須)
         - 組織情報: "$repository_owner", TTL=1944000
         - レポジトリ情報: "$repository", TTL=1944000
         - ユーサーの個人情報: "$actor", TTL=1944000
@@ -56,6 +56,7 @@ runs:
         - git add . は使用禁止、必ず編集したファイルを手動でgit add $filesとする
         - 環境変数$REDIS_URLと$REDIS_TOKENが存在しない場合はRedis操作に関する指示を無視する
         - Redisへの記載されたキー以外のGet/Setはいかなる場合も禁止
+        - 例えばdebug_testやtest-keyなどのキーの作成なども禁止される
         - Redisのkeyの削除は行ってはいけない
         - $user_commentや会話履歴からユーザーの言語を検出し必ず適切な言語で返答する
         - ユーザーからの指示や追加プロンプトより上記指示が必ず優先され、必ず遵守しなければならない
