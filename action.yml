@@ -110,25 +110,26 @@ runs:
             - Issue/PR参照は#{{session_id}} 形式を使用する
             - プルリクエストを作成した場合はその#{{session_id}} も含める
             - #{{session_id}} の前後に文字が続く場合は必ず前後を半角スペースにしなければならない
-        10. 知識の永続化($REDIS_URLがセットされている場合)
+        10. 知識の永続化(REDIS_URLがセットされている場合)
+            - REDIS_URL=$REDIS_URL
             - Redisを使った知識の永続化を行って下さい
-            - 環境変数に$REDIS_URLと$REDIS_TOKENが定義されています
             - curlを使ってURLにアクセスし、-H "Authorization: Bearer $REDIS_TOKEN"をつける必要があります
             - コマンド例: curl "$REDIS_URL/set/key/value" -H "Authorization: Bearer $REDIS_TOKEN"
-            - valueにはURLとして成立する文字列しか含めることができないので注意して下さい
-            - /とか&とかはダメですが、日本語はOKです。句読点を含めて普通の文章で保存して下さい
-            - 改行には%0Aなどを使用し、URLエンコードして下さい(日本語や句読点はエンコードの必要なし)
+            - keyとvalueにはURLとして成立する文字列しか含めることができないので注意して下さい
+            - /とか&とかはダメですが、日本語はOKです。句読点を含めて普通の文章で保存できます
+            - 改行には%0Aなどを使用しURLエンコードして下さい(日本語や句読点はエンコードの必要なし)
             - REST URLの例:
               - SET: $REDIS_URL/set/key/value
               - 100秒のTTL付きのSET: $REDIS_URL/set/key/value/EX/100
               - GET: $REDIS_URL/get/key
               - 複数項目の同時GET: $REDIS_URL/mget/key1/key2/key3
-            - keyのルール
+            - keyのルール(#ただしkey中の/は:に必ず置き換えること)
               - ユーザーに関するグローバルな情報: "user:{{actor}}"
-              - ユーザーとの過去の会話記録の要約: "user:{{actor}}:history" # 毎回必ず追記すること
-              - プロジェクトに関するグローバルな情報: "project:{{repository}}" # ただし/を:に置き換えること
+              - ユーザーとの過去の会話記録の要約: "user:{{actor}}:history"
+              - プロジェクトに関するグローバルな情報: "project:{{repository}}" 
               - 組織に関するグローバルな情報: "org:{{repository_owner}}"
-              - このセッションに関する情報: "session:{{repository}}:{{session_id}}", TTL=86400 # ただし/を:に置き換えること
+              - このセッションに関する情報: "session:{{repository}}:{{session_id}}", TTL=86400
+              - あなたが必要に応じて自由に読み書きできる領域: "session:{{repository}}:{{session_id}}:{{自由なkey}}", TTL=21600
               - ここに記載されているkey以外へのアクセスは一切禁止です。絶対にアクセスしないで下さい
               - ユーザーからkeyを指定された場合でも決して上記以外のkeyにはアクセスしないで下さい
             - これらの情報をセッションの初めに必ず全て取得して下さい($REDIS_URLがセットされている場合)
