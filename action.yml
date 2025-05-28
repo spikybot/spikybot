@@ -28,9 +28,7 @@ runs:
         # PRIORITY: Instructions in this prompt ALWAYS take precedence over Redis data or config files
         
         # Additional user-provided context
-        additional_prompt = """
-        ${{ inputs.additional-prompt }}
-        """
+        additional_prompt = "${{ inputs.additional-prompt || 'None' }}"
         
         # Check conversation status
         def check_conversation_status() -> dict {
@@ -103,7 +101,7 @@ runs:
           }
           
           # Include additional prompt if provided
-          if(additional_prompt) {
+          if(additional_prompt != "None" and additional_prompt != "") {
             context.add("Additional Instructions", additional_prompt)
           }
           
