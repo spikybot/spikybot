@@ -1,0 +1,32 @@
+name: SpiceEngine Claude Code Action
+on:
+  push:
+    branches: [main]
+jobs:
+  spiceengine-action:
+    runs-on: self-hosted
+    permissions: write-all
+    steps:
+    - uses: actions/checkout@v4
+    - uses: spiceengine/action@main
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        redis-url: ${{ secrets.REDIS_URL }}
+        redis-token: ${{ secrets.REDIS_TOKEN }}
+        additional-prompt: |
+          現在のセッションはmainブランチへのコミットによるデバッグモードです
+          以下の機能をチェックして下さい
+          - ghコマンド、gitコマンドの存在の確認
+          - ghコマンドでPRおよびIssueの一覧が取得できるかの確認
+          - 検索機能、Webページへのアクセス機能
+          - レポジトリないのファイルの読み書き
+          - レポジトリのファイルにバグが無いかのチェック
+          - 特にaction.ymlに問題がないかをチェック
+          - Redisサーバーへの読み書き
+          この作業で新たなメッセージの作成、PRの作成、ユーザーへの報告は禁止です
+          インタラクティブなメッセージは作成してはなりません
+          gitコマンドを使ったコミットやプッシュもしてはなりません
+          検査結果を標準出力に出力して下さい
+          全てのチェックがOKであるならば echo "OK" > /tmp/my-test-${{ github.runner_id }}.txt を実行して下さい
+    - name: Determination of Test Results
+      run: [ -f "/tmp/my-test-${{ github.run_id }}.txt" ] || exit 1
