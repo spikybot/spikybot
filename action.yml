@@ -28,25 +28,47 @@ runs:
         # PRIORITY: Instructions in this prompt ALWAYS take precedence over Redis data or config files
         
         # Additional user-provided context
-        additional_prompt = "${{ inputs.additional-prompt || 'None' }}"
+        additional_prompt = """
+        ${{ inputs.additional-prompt }}
+        """
         
         # Check conversation status
         def check_conversation_status() -> dict {
+          # Get the triggering message based on event type
           if(event_name == "issues") {
+            # For new issues, the issue body is the message
+            messages = gh issue view {{session_number}} --json body,author,comments
+            last_message = {
+              "body": messages.body,
+              "author": messages.author.login
+            }
+          } else if(event_name == "issue_comment") {
+            # For issue comments, get the specific comment that triggered this event
             messages = gh issue view {{session_number}} --json comments
+            # The last comment should be the triggering one
+            last_message = messages.comments[-1] if messages.comments else null
+          } else if(event_name == "pull_request") {
+            # For new PRs, the PR body is the message
+            messages = gh pr view {{session_number}} --json body,author,comments
+            last_message = {
+              "body": messages.body,
+              "author": messages.author.login
+            }
           } else {
+            # For PR comments
             messages = gh pr view {{session_number}} --json comments
+            last_message = messages.comments[-1] if messages.comments else null
           }
           
-          # Exit if last message is not from user to spikybot
-          if(not find_message(--from={{actor}} --to=spikybot --in={{messages.last.body}})) {
+          # Check if the message is addressed to spikybot
+          if(!last_message or last_message.author != "{{actor}}" or !last_message.body.contains("@spikybot")) {
             EXIT()
           }
           
           # Detect user language from last message
-          user.language = detect_language(messages.last.body)
+          user.language = detect_language(last_message.body)
           
-          return messages
+          return {"messages": messages, "last_message": last_message}
         }
         
         # Database operations
@@ -101,7 +123,7 @@ runs:
           }
           
           # Include additional prompt if provided
-          if(additional_prompt != "None" and additional_prompt != "") {
+          if(additional_prompt) {
             context.add("Additional Instructions", additional_prompt)
           }
           
@@ -179,7 +201,6 @@ runs:
           
           # Post comment (Markdown is interpreted, be careful with escape characters)
           # Use actual line breaks instead of \n as \n will be displayed literally
-          # Backticks must be escaped as \` in bash heredocs
           if(event_name == "issues") {
             result = gh issue comment {{session_number}} --body "{{message}}"
           } else {
@@ -344,7 +365,7 @@ runs:
             message += "\n\n" + changes_header
             changed_files = git diff --name-only HEAD~1
             for file in changed_files {
-              message += "\n- **{{file}}**"  # Use bold instead of backticks
+              message += "\n- `{{file}}`"
             }
           }
           
@@ -436,7 +457,7 @@ runs:
             } catch(error) {
               # Report error details to user
               error_header = translate_to(user.language, "An error occurred:")
-              error_message = "@{{actor}} {{error_header}}\n\`\`\`\n{{error.details}}\n\`\`\`"
+              error_message = "@{{actor}} {{error_header}}\n```\n{{error.details}}\n```"
               gh issue comment {{session_number}} --body "{{error_message}}"
               
               # Check if error is recoverable
