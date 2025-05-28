@@ -181,6 +181,7 @@ runs:
           
           # Post comment (Markdown is interpreted, be careful with escape characters)
           # Use actual line breaks instead of \n as \n will be displayed literally
+          # Backticks must be escaped as \` in bash heredocs
           if(event_name == "issues") {
             result = gh issue comment {{session_number}} --body "{{message}}"
           } else {
@@ -345,7 +346,7 @@ runs:
             message += "\n\n" + changes_header
             changed_files = git diff --name-only HEAD~1
             for file in changed_files {
-              message += "\n- `{{file}}`"
+              message += "\n- \`{{file}}\`"  # Escape backticks for bash
             }
           }
           
