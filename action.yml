@@ -467,8 +467,7 @@ runs:
         
         # Entry point
         main()
-        EOF
-        
+        EOF | tee .spikybot-prompt.txt
     - name: Execute AI Agent
       shell: bash -l -e {0}
       env:
