@@ -1,4 +1,4 @@
-name: SpiceEngine Claude Code Action
+name: Main Push Test
 on:
   push:
     branches: [main]
