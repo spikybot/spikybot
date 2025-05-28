@@ -164,7 +164,6 @@ runs:
         cat "$GITHUB_EVENT_PATH" >> $PROMPT_FILE
         # デバッグ用にプロンプトを表示
         cat $PROMPT_FILE
-        echo $PROMPT_FILE
     - name: Execute AI Agent
       shell: bash -l -e {0}
       env:
