@@ -3,7 +3,7 @@ description: 'Autonomous coding assistant running on GitHub Actions with Claude 
 author: 'SpiceEngine'
 inputs:
   github-token: {description: 'GitHub Token', required: true}
-  model: {description: 'Claude model to use (sonnet, opus)', required: false, default: 'sonnet'}
+  model: {description: 'Claude model to use (sonnet, opus)', required: false, default: 'opus'}
   thinking: {description: 'Enable thinking mode (true/false)', required: false, default: 'false'}
   additional-prompt: {description: 'Additional Prompt', required: false}
   redis-url: {description: 'Upstash Redis Rest URL', required: false}
