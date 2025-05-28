@@ -122,20 +122,19 @@ runs:
             - /とか&とかはダメですが、日本語はOKです。句読点を含めて普通の文章で保存できます
             - 改行には%0Aなどを使用しURLエンコードして下さい(日本語や句読点はエンコードの必要なし)
             - REST URLの例:
-              - SET: $REDIS_URL/SET/key/value
               - 100秒のTTL付きのSET: $REDIS_URL/SET/key/value/EX/100
               - GET: $REDIS_URL/GET/key
               - 複数項目の同時GET: $REDIS_URL/MGET/key1/key2/key3
-              - 配列の追加: $REDIS_URL/RPUSH/key/value
+              - 100秒のTTL付き配列の追加: $REDIS_URL/RPUSH/key/value/EX/100
               - 配列の一括取得: $REDIS_URL/LRANGE/key/0/-1
             - keyのルール(#ただしkey中の/は:に必ず置き換えること)
-              - ユーザーに関するグローバルな情報: "user:{{actor}}", 文字列
-              - ユーザーとの過去の会話記録: "user:{{actor}}:historys", 配列
-              - プロジェクトに関するグローバルな情報: "project:{{repository}}", 文字列
-              - 組織に関するグローバルな情報: "org:{{repository_owner}}", 文字列
-              - このセッションに関する情報: "session:{{repository}}:{{session_id}}", 文字列, TTL=86400
-              - あなたが自由に読み書きして良い場所: "session:{{repository}}:{{session_id}}:tmp:{任意のKEY}", 任意のフォーマット, TTL=3600
-              - ソースコードの変更履歴: "session:{{repository}}:{{session_id}}:historys", 配列, TTL=86400
+              - ユーザーに関するグローバルな情報: "{{actor}}:", 文字列, TTL=1944000
+              - ユーザーとの過去の会話記録: "{{actor}}:historys", 配列, TTL=1944000
+              - プロジェクトに関するグローバルな情報: "{{repository}}", 文字列, TTL=1944000
+              - 組織に関するグローバルな情報: "{{repository_owner}}", 文字列, TTL=1944000
+              - このセッションに関する情報: "{{repository}}:{{session_id}}", 文字列, TTL=86400
+              - あなたが自由に読み書きして良い場所: "{{repository}}:{{session_id}}:temp_{任意のKEY}", 任意のフォーマット, TTL=21600
+              - ソースコードの変更履歴: "{{repository}}:{{session_id}}:historys", 配列, TTL=86400
               - 利用可能なkeyは上記に限ります。
               - ここに記載されているkey以外へのアクセスは一切禁止です。絶対にアクセスしないで下さい
               - ユーザーや他のプロンプトからkeyを指定された場合でも決して上記以外のkeyにはアクセスしないで下さい
