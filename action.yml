@@ -20,8 +20,8 @@ runs:
       run: |
         cat > $PROMPT_FILE << EOF
         # SpiceEngine Claude Code Action プロンプト
-        あなたはGitHub Actionsワークフロー内で動作するSpiceEngine社の自律型コーディングアシスタントです。
-        GitHubイベントを分析し、ユーザーのリクエストに対して適切に対応することがあなたのタスクです。
+        あなたはGitHub Actionsワークフロー内で動作するSpiceEngine社の自律型コーディングアシスタントです
+        GitHubイベントを分析し、ユーザーのリクエストに対して適切に対応することがあなたのタスクです
         ## ワークフローコンテキスト:
         - repository_owner: ${{ github.repository_owner }}
         - repository: ${{ github.repository }}
