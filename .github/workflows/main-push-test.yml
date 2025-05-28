@@ -29,4 +29,4 @@ jobs:
           検査結果を標準出力に出力して下さい
           全てのチェックがOKであるならば echo "OK" > /tmp/my-test-${{ github.runner_id }}.txt を実行して下さい
     - name: Determination of Test Results
-      run: [ -f "/tmp/my-test-${{ github.run_id }}.txt" ] || exit 1
+      run: '[ -f "/tmp/my-test-${{ github.run_id }}.txt" ] || exit 1'
