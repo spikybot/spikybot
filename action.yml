@@ -8,12 +8,12 @@ inputs:
   additional-prompt: {description: 'Additional Prompt', required: false}
   redis-url: {description: 'Upstash Redis Rest URL', required: false}
   redis-token: {description: 'Upstash Redis Rest Token', required: false}
-env:
-  GH_TOKEN: ${{ inputs.github-token }}
-  REDIS_URL: ${{ inputs.redis-url }}
-  REDIS_TOKEN: ${{ inputs.redis-token }}
 runs:
   using: 'composite'
+  env:
+    GH_TOKEN: ${{ inputs.github-token }}
+    REDIS_URL: ${{ inputs.redis-url }}
+    REDIS_TOKEN: ${{ inputs.redis-token }}
   steps:
     - name: Create Prompt
       shell: bash
