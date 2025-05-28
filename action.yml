@@ -168,7 +168,7 @@ runs:
       shell: bash -l -e {0}
       env:
         GH_TOKEN: ${{ inputs.github-token }}
-        PROMPT_FILE: my-prompt-${{ github.runner_id }}.txt
+        PROMPT_FILE: my-prompt-${{ github.run_id }}.txt
       run: |
         CLAUDE_CMD="claude -p --output-format stream-json --verbose --model ${{ inputs.model }}"
         if [ "${{ inputs.thinking }}" = "true" ]; then
