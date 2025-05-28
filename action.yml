@@ -10,13 +10,12 @@ inputs:
   redis-token: {description: 'Upstash Redis Rest Token', required: false}
 runs:
   using: 'composite'
-  env:
-    GH_TOKEN: ${{ inputs.github-token }}
-    REDIS_URL: ${{ inputs.redis-url }}
-    REDIS_TOKEN: ${{ inputs.redis-token }}
   steps:
     - name: Create Prompt
       shell: bash
+      env:
+        REDIS_URL: ${{ inputs.redis-url }}
+        REDIS_TOKEN: ${{ inputs.redis-token }}
       run: |
         PROMPT_FILE=$(mktemp /tmp/my-prompt.XXXXXX.txt)
         echo "PROMPT_FILE=$PROMPT_FILE" >> $GITHUB_OUTPUT
@@ -168,6 +167,8 @@ runs:
         cat $PROMPT_FILE
     - name: Execute AI Agent
       shell: bash -l -e {0}
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
       run: |
         CLAUDE_CMD="claude -p --output-format stream-json --verbose --model ${{ inputs.model }}"
         if [ "${{ inputs.thinking }}" = "true" ]; then
