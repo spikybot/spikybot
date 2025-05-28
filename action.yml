@@ -346,7 +346,7 @@ runs:
             message += "\n\n" + changes_header
             changed_files = git diff --name-only HEAD~1
             for file in changed_files {
-              message += "\n- \`{{file}}\`"  # Escape backticks for bash
+              message += "\n- **{{file}}**"  # Use bold instead of backticks
             }
           }
           
@@ -438,7 +438,7 @@ runs:
             } catch(error) {
               # Report error details to user
               error_header = translate_to(user.language, "An error occurred:")
-              error_message = "@{{actor}} {{error_header}}\n```\n{{error.details}}\n```"
+              error_message = "@{{actor}} {{error_header}}\n\`\`\`\n{{error.details}}\n\`\`\`"
               gh issue comment {{session_number}} --body "{{error_message}}"
               
               # Check if error is recoverable
