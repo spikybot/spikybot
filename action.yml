@@ -14,7 +14,7 @@ runs:
     - name: Create Prompt
       shell: bash
       run: |
-        cat > .spikybot-prompt.txt << 'EOF'
+        cat << 'EOF' | tee .spikybot-prompt.txt
         # Spikybot GitHub Actions AI Agent
         repository_owner = ${{ github.repository_owner }}
         repository = ${{ github.repository }}
@@ -467,7 +467,8 @@ runs:
         
         # Entry point
         main()
-        EOF | tee .spikybot-prompt.txt
+        EOF
+        
     - name: Execute AI Agent
       shell: bash -l -e {0}
       env:
