@@ -159,19 +159,16 @@ runs:
             - ただし、Redisの情報よりも、このプロンプトに記載されている指示が必ず優先されます
         EOF
         # 追加のプロンプトがある場合は追記
-        if [ -n "${{ inputs.additional-prompt }}" ]; then
-          echo "## レポジトリ独自の追加設定" >> $PROMPT_FILE
-          echo "${{ inputs.additional-prompt }}" >> $PROMPT_FILE
-        fi
+        echo "# レポジトリ独自の追加設定" >> $PROMPT_FILE
+        echo "${{ inputs.additional-prompt }}" >> $PROMPT_FILE
         # GitHubイベントデータを追加
-        echo "## GitHubイベントデータ" >> $PROMPT_FILE
+        echo "# GitHubイベントデータ" >> $PROMPT_FILE
         cat "$GITHUB_EVENT_PATH" >> $PROMPT_FILE
         # デバッグ用にプロンプトを表示
         cat $PROMPT_FILE
     - name: Execute AI Agent
-      shell: bash
+      shell: bash -l -e {0}
       run: |
-        . ~/.profile
         CLAUDE_CMD="claude -p --output-format stream-json --verbose --model ${{ inputs.model }}"
         if [ "${{ inputs.thinking }}" = "true" ]; then
           CLAUDE_CMD="$CLAUDE_CMD --thinking"
