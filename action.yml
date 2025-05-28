@@ -16,7 +16,7 @@ runs:
       env:
         REDIS_URL: ${{ inputs.redis-url }}
         REDIS_TOKEN: ${{ inputs.redis-token }}
-        PROMPT_FILE: "/tmp/my-prompt-${{ github.run_id }}.txt"
+        PROMPT_FILE: ".my-prompt-${{ github.run_id }}.txt"
       run: |
         cat > $PROMPT_FILE << EOF
         # SpiceEngine Claude Code Action プロンプト
