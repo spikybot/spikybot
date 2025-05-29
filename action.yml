@@ -27,6 +27,12 @@ runs:
           echo "continue=true" >> $GITHUB_OUTPUT
           echo "assignee=spikybot" >> $GITHUB_OUTPUT
         fi
+        cat > .comment-last-body.txt << 'SPIKYBOTEOF${{ github.run_id }}'
+          ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
+        SPIKYBOTEOF${{ github.run_id }}
+        if [ "${{ github.actor }}" = "spikybot" ] && ! grep -q "@spikybot" .comment-last-body.txt; then
+          echo "continue=false" >> $GITHUB_OUTPUT
+        fi
     - name: Composing Prompt
       if: steps.mention-check.outputs.continue == 'true'
       shell: bash
