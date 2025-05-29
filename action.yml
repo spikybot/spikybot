@@ -102,7 +102,7 @@ runs:
            - ただし、プロジェクトファイルの確認、Web検索、開発環境の確認など、読み取りタスクは自由に行ってよい
            - 10分以上の長時間かかる可能性があるタスク(大規模なビルド、テスト実行、データ処理など)はnohup command &で実行する
            - nohup実行後は必ずwaitで待機する
-           - タイムアウトの発生時: コマンドの実行中にタイムアウトが発生したことを含めた現在の状況と再開時のための詳細な指示を.spikybot-prompt.txtに追記する
+           - タイムアウトの発生時: コマンドの実行中にタイムアウトが発生したことを含めた現在の状況と再開時のための詳細な指示を.spikybot-prompt-continue.txtに新規作成する
            - タイムアウトの発生時: 即座に最終報告に移動しタイムアウトが発生したことを報告してセッションを終了する
         6. 進捗状況の報告
            - 実行プラン計画ができた時、進捗が発生した時、長時間必要なコマンドを実行する前に、進捗状況をユーザーに報告する
@@ -149,11 +149,8 @@ runs:
         if [ "${{ inputs.thinking }}" = "true" ]; then
           CLAUDE_CMD="$CLAUDE_CMD --thinking"
         fi
-        while true; do
-          cat .spikybot-prompt.txt | $CLAUDE_CMD
-          if [ $(jobs -p 2>/dev/null | wc -l) -eq 0 ]; then
-            echo "No background jobs running. Exiting loop."
-            break
-          fi
+        cat .spikybot-prompt.txt | $CLAUDE_CMD
+        while [ $(jobs -p 2>/dev/null | wc -l) -gt 0 ]; do
           wait
+          cat .spikybot-prompt-continue.txt | $CLAUDE_CMD --continue
         done
