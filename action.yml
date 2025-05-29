@@ -157,6 +157,9 @@ runs:
         cat .spikybot-prompt.txt | $CLAUDE_CMD
         # 長時間コマンドのタイムアウト対策
         while [ -f ".spikybot-prompt-continue.txt" ]; do
+          echo "Continuing Prompts"
+          cat ".spikybot-prompt-continue.txt"
+          echo "Waiting for command completion..."
           until [ -f ".spiky-done.txt" ]; do sleep 1; done
           rm .spiky-done.txt
           mv .spikybot-prompt-continue.txt .spikybot-prompt.txt
