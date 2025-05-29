@@ -22,8 +22,10 @@ runs:
           echo "continue=true" >> $GITHUB_OUTPUT
         fi
         ASSIGNEES='${{ toJSON(github.event.issue.assignees || github.event.pull_request.assignees) }}'
-        if echo "$ASSIGNEES" | grep -q '"spikybot"'; then
+        ASSIGNEE_LOGINS=$(echo "$ASSIGNEES_JSON" | jq -r '.[].login')
+        if echo "$ASSIGNEE_LOGINS" | grep -q "^spikybot$"; then
           echo "continue=true" >> $GITHUB_OUTPUT
+          echo "assignee=spikybot" >> $GITHUB_OUTPUT
         fi
     - name: Composing Prompt
       if: steps.mention-check.outputs.continue == 'true'
@@ -35,6 +37,7 @@ runs:
         repository = ${{ github.repository }}
         event_name = ${{ github.event_name }}
         event_action = ${{ github.event.action }}
+        event_asignee = ${{ steps.mention-check.outputs.assignee }}
         actor = ${{ github.actor }}
         run_id = ${{ github.run_id }}
         session_number = ${{ github.event.issue.number || github.event.pull_request.number }}
@@ -87,6 +90,7 @@ runs:
         # 実行ワークフロー(このフローは実行順序を遵守しなければならない)
         1. 会話状況の確認
            - $event_nameに応じて適切にghコマンドでコメント一覧を取得
+           - $event_asigneeに自分が含まれているか確認
            - 新規IssueやPRに@spikybotが含まれていない場合は絶対に返信しないで必ずセッションを終了
            - コメントが@spikybotへのコメントではない可能性が少しでもある場合ここで必ずセッションを終了
            - ここでセッションを終了した場合は何もコメントを投稿しないこと
