@@ -1,4 +1,4 @@
-# SpiceEngine Claude Code Action
+# SpikyBot from SpiceEngine
 
 Autonomous coding assistant running on GitHub Actions with Claude Code
 
@@ -10,12 +10,7 @@ Autonomous coding assistant running on GitHub Actions with Claude Code
 ## Usage
 
 ```yaml
-- uses: spiceengine/action@main
+- uses: spikybot/spikybot@main
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    model: opus # option (default: sonnet)
-    thinking: true # option (default: false)
-    additional-prompt: "カスタムプロンプト" # option
-    redis-url: ${{ secrets.REDIS_URL }}
-    redis-token: ${{ secrets.REDIS_TOKEN }}
 ```
