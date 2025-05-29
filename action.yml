@@ -20,10 +20,11 @@ runs:
         SPIKYBOTEOF${{ github.run_id }}
         if grep -q "@spikybot" .comment-body.txt; then
           echo "continue=true" >> $GITHUB_OUTPUT
-        else
-          echo "continue=false" >> $GITHUB_OUTPUT
         fi
-        echo assignees: '${{ toJSON(github.event.issue.assignees || github.event.pull_request.assignees) }}'
+        ASSIGNEES='${{ toJSON(github.event.issue.assignees || github.event.pull_request.assignees) }}'
+        if echo "$ASSIGNEES" | grep -q '"spikybot"'; then
+          echo "continue=true" >> $GITHUB_OUTPUT
+        fi
     - name: Composing Prompt
       if: steps.mention-check.outputs.continue == 'true'
       shell: bash
