@@ -23,9 +23,7 @@ runs:
         else
           echo "continue=false" >> $GITHUB_OUTPUT
         fi
-        echo github.event.issue.assignee.login: ${{ github.event.issue.assignee.login }}
-        echo github.event.issue.assignee: ${{ github.event.issue.assignee }}
-        echo github.event.issue.assignees: ${{ github.event.issue.assignees }}
+        echo assignees: '${{ toJSON(github.event.issue.assignees || github.event.pull_request.assignees) }}'
     - name: Composing Prompt
       if: steps.mention-check.outputs.continue == 'true'
       shell: bash
