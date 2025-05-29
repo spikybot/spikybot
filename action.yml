@@ -33,6 +33,7 @@ runs:
         if [ "${{ github.actor }}" = "spikybot" ] && ! grep -q "@spikybot" .comment-last-body.txt; then
           echo "continue=false" >> $GITHUB_OUTPUT
         fi
+        cat $GITHUB_OUTPUT | grep continue=
     - name: Composing Prompt
       if: steps.mention-check.outputs.continue == 'true'
       shell: bash
