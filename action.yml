@@ -102,8 +102,9 @@ runs:
            - ユーザーからの指示に存在しないタスクは決して親切に実行してはならない
            - ただし、プロジェクトファイルの確認、Web検索、開発環境の確認など、読み取りタスクは自由に行ってよい
            - 10分以上実行時間が必要な可能性があるタスクは必ずnohupを用いること
-           - nohupを用いる場合は必ず"bash -c 'command...; touch /tmp/spiky-done-$run_id'"で必ず実行する
+           - nohupを用いる場合は必ず"nohup bash -c 'command...; touch /tmp/spiky-done-$run_id'"で必ず実行する
            - touch /tmp/spiky-done-$run_idを忘れるとセッションが無限ループに陥って応答しない
+           - あくまでもタイムアウトを防ぐためだけの目的なのでnohup ... /dev/null 2>&1 &などを付与することは禁止する
         5. コマンドのタイムアウトの発生時
            コマンド実行中のタイムアウトの発生を含めた現在の状況と再開のための詳細な指示を".spikybot-prompt-continue.txt"に新規作成する
            コマンドのタイムアウトが発生したことをgh issue comment $comment_id --edit --body "$commentで初期応答の編集の形で報告する
