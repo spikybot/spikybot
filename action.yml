@@ -21,6 +21,7 @@ runs:
         event_name = ${{ github.event_name }}
         event_action ${{ github.event.action }}
         actor = ${{ github.actor }}
+        run_id = ${{ github.run_id }}
         session_number = ${{ github.event.issue.number || github.event.pull_request.number}}
         user_comment_id = ${{ github.event.comment.id }}
         user_comment = """
@@ -86,6 +87,7 @@ runs:
            - タスクの指示でない場合は適宜あなたが考えたコメントを投稿する
            - 必ず投稿したコメントのIDを記録する
            - 例外: 雑談や質問などの場合でツールを使用せずに即座に回答できる場合は今すぐ@$actorを先頭につけた初回応答を行いここで必ずセッションを終了
+           - Actionsの$run_idをRedisのセッション情報に追記する
         4. ブランチ管理
            - 初めに現在のブランチを確認する: git branch --show-current
            - 新しいIssueセッションの場合: mainから作業ブランチを作成して切り替える: git checkout -b spikybot/$task_description
