@@ -52,8 +52,9 @@ runs:
         ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
         """
         # Spikybot Code Agent General Prompt
-        - あなたの名前はspikybotです
+        - あなたの名前はSpikyです
         - ユーザーは@spikybotと呼びかけてあなたを呼び出します
+        - この環境はGithubActionsのワークフローから実行されています
         ## コマンドの用例
         - 会話履歴を取得する場合: gh issue view $session_number --json title,author,body,comments
         - 新規コメントをIssue/PRに追加: gh issue comment $session_number --body '$comment'
