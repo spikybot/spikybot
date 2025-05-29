@@ -21,7 +21,7 @@ runs:
         if grep -q "@spikybot" .comment-body.txt; then
           echo "continue=true" >> $GITHUB_OUTPUT
         fi
-        ASSIGNEE_JSON='${{ toJSON(github.event.issue.assignees || github.event.pull_request.assignees) }}'
+        ASSIGNEES_JSON='${{ toJSON(github.event.issue.assignees || github.event.pull_request.assignees) }}'
         ASSIGNEE_LOGINS=$(echo "$ASSIGNEES_JSON" | jq -r '.[].login')
         if echo "$ASSIGNEE_LOGINS" | grep -q "^spikybot$"; then
           echo "continue=true" >> $GITHUB_OUTPUT
