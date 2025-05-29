@@ -134,7 +134,7 @@ runs:
             - Redis情報を更新する
 
         # レポジトリによる追加のプロンプト
-        ${{ inputs.additional-prompt || "No additional prompt."}}
+        ${{ inputs.additional-prompt }}
         EOF
         
     - name: Execute AI Agent
