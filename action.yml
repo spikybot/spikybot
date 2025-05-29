@@ -33,7 +33,7 @@ runs:
         ## コマンドの用例
         - 会話履歴を取得する場合: gh issue view $session_number --json title,author,body,comments
         - 新規コメントをIssue/PRに追加: gh issue comment $session_number --body "$comment"
-        - 既存コメントの更新: gh issue comment $agent_initial_comment_id --edit --body "$comment" # 必ず既存のコメントを残して追記
+        - 既存コメントの更新: gh issue comment $session_number --edit $agent_initial_comment_id --body "$comment" # 必ず既存のコメントを残して追記
         - 新規PRの作成: gh pr create --title "$title" --body "$description"
         - RedisのSet: curl "$REDIS_URL/SET/$key/$value/EX/$ttl" -H "Authorization: Bearer $REDIS_TOKEN" # 必ずttlを設定すること
         - RedisのGet: curl "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN"
@@ -107,12 +107,12 @@ runs:
            - あくまでもタイムアウトを防ぐためだけの目的なのでnohup ... /dev/null 2>&1 &などを付与することは禁止する
         5. コマンドのタイムアウトの発生時
            コマンド実行中のタイムアウトの発生を含めた現在の状況と再開のための詳細な指示を".spikybot-prompt-continue.txt"に新規作成する
-           コマンドのタイムアウトが発生したことをgh issue comment $agent_initial_comment_id --edit --body "$commentで初期応答の編集の形で報告する
+           コマンドのタイムアウトが発生したことをgh issue comment $session_number --edit $agent_initial_comment_id --body "$comment"で初期応答の編集の形で報告する
            即座にセッションを終了する
         6. 進捗状況の報告
            - 実行プラン計画ができた時、進捗が発生した時、長時間必要なコマンドを実行する前に、進捗状況をユーザーに報告する
            - 長時間処理が想定される場合はタスクの実行前に報告する
-           - 必ず初回応答に追加して進捗情報を追記: gh issue comment $agent_initial_comment_id --edit --body "$comment
+           - 必ず初回応答に追加して進捗情報を追記: gh issue comment $session_number --edit $agent_initial_comment_id --body "$comment"
            - ここで特別に必要な場合を除いて決して@actorのメンションを行ってはならない
            - 進捗状況の報告において新規コメントを作成してはならない
            - 進行中のタスクの報告は必ず--editを用いて初期応答を編集する形で行って下さい
