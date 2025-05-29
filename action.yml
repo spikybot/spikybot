@@ -110,7 +110,7 @@ runs:
         3. 初回応答の投稿
            - 必ずセッションでタスクを開始する前にghコマンドで応答する
            - 初回応答では@$actorによるメンションは決して行わない
-           - タスクの場合のコメント例：'$task_titleのタスクを受け取りました。$task_planを開始します...'
+           - タスクの場合のコメント例：'$task_titleのタスクを受け取りました。$task_planを開始します...\n[Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})'
            - タスクの指示でない場合は適宜あなたが考えたコメントを投稿する
            - 必ず投稿結果を$agent_initial_comment_idとして記録する
            - 例外: 雑談や質問などの場合でツールを使用せずに即座に回答できる場合は今すぐ@$actorを先頭につけた初回応答を行いここで必ずセッションを終了
