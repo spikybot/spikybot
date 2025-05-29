@@ -14,7 +14,7 @@ runs:
     - name: Composing Prompt
       shell: bash
       run: |
-        cat << 'EOF' | tee .spikybot-prompt.txt
+        cat > .spikybot-prompt.txt << 'EOF'
         # Session Context
         repository_owner = ${{ github.repository_owner }}
         repository = ${{ github.repository }}
@@ -99,14 +99,10 @@ runs:
            - ユーザーの指示に従ってタスクを実行する
            - ユーザーからの指示に存在しないタスクは決して親切に実行してはならない
            - ただし、プロジェクトファイルの確認、Web検索、開発環境の確認など、読み取りタスクは自由に行ってよい
-           - 実行時間が120秒以上必要な可能性があるタスクは必ず以下のnohupを用いること
-           - nohupを用いる場合は必ず"nohup bash -c 'command...; touch .spiky-done.txt'"で必ず実行する
-           - touch .spiky-done.txtを忘れるとセッションが無限ループに陥って応答しない
-           - あくまでもタイムアウトを防ぐためだけの目的なのでnohup ... /dev/null 2>&1 &などを付与することは禁止する
         6. コマンドのタイムアウトの発生時
-           - nohupを使用していない場合: nohupを使用して再度実行する
-           - 以下、nohupを使用してタイムアウトが発生した場合
-           - タイムアウトが発生してもバックグラウンドでタスクが継続されているため問題ない
+           - タイムアウトしたコマンドを.spikybot-continue.shに新規作成する
+           - セッション中でバックグラウンドこのスクリプトが実行される
+           - コマンドの実行ログを参照したい場合は必ずcommand | teeの形でログファイルを作成する
            - AIエージェントの実行はタスクが終わると自動で再開される
            - コマンド実行中のタイムアウトの発生を含めた現在の状況と再開のための詳細な指示を".spikybot-prompt-continue.txt"に新規作成する
            - コマンドのタイムアウトが発生したことを必ず初期応答の編集の形で報告する
@@ -158,12 +154,10 @@ runs:
         fi
         cat .spikybot-prompt.txt | $CLAUDE_CMD
         # 長時間コマンドのタイムアウト対策
-        while [ -f ".spikybot-prompt-continue.txt" ]; do
-          echo "Continuing Prompts"
-          cat ".spikybot-prompt-continue.txt"
-          echo "Waiting for command completion..."
-          until [ -f ".spiky-done.txt" ]; do sleep 1; done
-          rm .spiky-done.txt
+        while [ -f ".spikybot-continue.sh" ]; do
+          cat .spikybot-continue.sh
+          bash -l -e .spikybot-continue.sh
+          rm .spikybot-continue.sh
           mv .spikybot-prompt-continue.txt .spikybot-prompt.txt
           cat .spikybot-prompt.txt | $CLAUDE_CMD --continue
         done
