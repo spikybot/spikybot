@@ -19,10 +19,10 @@ runs:
         repository_owner = ${{ github.repository_owner }}
         repository = ${{ github.repository }}
         event_name = ${{ github.event_name }}
-        event_action ${{ github.event.action }}
+        event_action = ${{ github.event.action }}
         actor = ${{ github.actor }}
         run_id = ${{ github.run_id }}
-        session_number = ${{ github.event.issue.number || github.event.pull_request.number}}
+        session_number = ${{ github.event.issue.number || github.event.pull_request.number }}
         user_initial_comment_id = ${{ github.event.comment.id }}
         user_comment = """
         ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
