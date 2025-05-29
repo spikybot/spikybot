@@ -15,8 +15,10 @@ runs:
       id: mention-check
       shell: bash
       run: |
-        COMMENT_BODY="${{ github.event.comment.body }}${{ github.event.issue.body }}${{ github.event.pull_request.body }}"
-        if echo "$COMMENT_BODY" | grep -q "@spikybot"; then
+        cat > .comment-body.txt << 'SPIKYBOTEOF${{ github.run_id }}'
+        ${{ github.event.comment.body }}${{ github.event.issue.body }}${{ github.event.pull_request.body }}
+        SPIKYBOTEOF${{ github.run_id }}
+        if grep -q "@spikybot" .comment-body.txt; then
           echo "continue=true" >> $GITHUB_OUTPUT
         else
           echo "continue=false" >> $GITHUB_OUTPUT
@@ -25,7 +27,7 @@ runs:
       if: steps.mention-check.outputs.continue == 'true'
       shell: bash
       run: |
-        cat > .spikybot-prompt.txt << 'EOF'
+        cat > .spikybot-prompt.txt << 'SPIKYBOTEOF${{ github.run_id }}'
         # Session Context
         repository_owner = ${{ github.repository_owner }}
         repository = ${{ github.repository }}
@@ -153,7 +155,7 @@ runs:
             - 全てのRedisのkeyをJSONで更新する
         # レポジトリによる追加のプロンプト
         ${{ inputs.additional-prompt }}
-        EOF
+        SPIKYBOTEOF${{ github.run_id }}
     - name: Execute AI Agent Loop
       if: steps.mention-check.outputs.continue == 'true'
       shell: bash -l -e {0}
