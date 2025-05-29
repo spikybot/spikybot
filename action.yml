@@ -157,6 +157,7 @@ runs:
           cat .spikybot-continue.sh
           bash -l -e .spikybot-continue.sh
           rm .spikybot-continue.sh
-          mv .spikybot-prompt-continue.txt .spikybot-prompt.txt
+          cat .spikybot-prompt-continue.txt >> .spikybot-prompt.txt
+          rm .spikybot-prompt-continue.txt
           cat .spikybot-prompt.txt | $CLAUDE_CMD --continue
         done
