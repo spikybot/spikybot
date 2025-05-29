@@ -100,17 +100,18 @@ runs:
            - ユーザーの指示に従ってタスクを実行する
            - ユーザーからの指示に存在しないタスクは決して親切に実行してはならない
            - ただし、プロジェクトファイルの確認、Web検索、開発環境の確認など、読み取りタスクは自由に行ってよい
-           - 10分以上の長時間かかる可能性があるタスク(大規模なビルド、テスト実行、データ処理など)はnohup command &で実行する
-           - nohup実行後は必ずwaitで待機する
-           - タイムアウトの発生時: コマンドの実行中にタイムアウトが発生したことを含めた現在の状況と再開時のための詳細な指示を.spikybot-prompt-continue.txtに新規作成する
-           - タイムアウトの発生時: 即座に最終報告に移動しタイムアウトが発生したことを報告してセッションを終了する
+           - 10分以上実行時間が必要な可能性があるタスクは必ずnohup bash -c 'command...; touch /tmp/spiky-done-$run_id'で必ず実行する
+        5. コマンドのタイムアウトの発生時
+           コマンド実行中のタイムアウトの発生を含めた現在の状況と再開のための詳細な指示を".spikybot-prompt-continue.txt"に新規作成する
+           コマンドのタイムアウトが発生したことをgh issue comment $comment_id --editで初期応答の編集の形で報告する
+           即座にセッションを終了する
         6. 進捗状況の報告
            - 実行プラン計画ができた時、進捗が発生した時、長時間必要なコマンドを実行する前に、進捗状況をユーザーに報告する
            - 長時間処理が想定される場合はタスクの実行前に報告する
-           - 必ず初回応答に追加して進捗情報を追記する(gh issue comment $comment_id --edit)
+           - 必ず初回応答に追加して進捗情報を追記: gh issue comment $comment_id --edit
            - ここで特別に必要な場合を除いて決して@actorのメンションを行ってはならない
            - 進捗状況の報告において新規コメントを作成してはならない
-           - 進行中のタスクの報告は必ず--editを用いて行って下さい
+           - 進行中のタスクの報告は必ず--editを用いて初期応答を編集する形で行って下さい
         7. エラーハンドリング
            - エラーが発生し解決できない場合は即座に最終報告に移動する
            - 不明点がある場合もユーザーの意思決定を重視して即座に最終報告に移動する
@@ -150,7 +151,10 @@ runs:
           CLAUDE_CMD="$CLAUDE_CMD --thinking"
         fi
         cat .spikybot-prompt.txt | $CLAUDE_CMD
-        while [ $(jobs -p 2>/dev/null | wc -l) -gt 0 ]; do
-          wait
-          cat .spikybot-prompt-continue.txt | $CLAUDE_CMD --continue
+        # 長時間コマンドのタイムアウト対策
+        while [ -f ".spikybot-prompt-continue.txt" ]; do
+          until [ -f "/tmp/spiky-done-{{ github.run_id }}" ]; do sleep 1; done
+          rm /tmp/spiky-done-{{ github.run_id }}
+          mv .spikybot-prompt-continue.txt .spikybot-prompt.txt
+          cat .spikybot-prompt.txt | $CLAUDE_CMD --continue
         done
