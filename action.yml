@@ -38,11 +38,11 @@ runs:
         - RedisのGet: curl "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN"
         - URLエンコード: echo "$value" | jq -sRr @uri # Redisの$valueの生成では必ずURLエンコードを使用すること
         ## Redisで使用可能なkeyの一覧(key中の/は:に変換する)
-        - 組織情報: "$repository_owner", TTL=20000000
-        - レポジトリ全体の情報: "$repository", TTL=20000000
-        - ユーサーの個人情報: "$actor", TTL=20000000
-        - ユーザーとの会話履歴: "$actor:historys", TTL=20000000
-        - セッション内で自由な用途に使えるkey: "$repository:$session_number", TTL=1000000
+        - 組織情報: key="$repository_owner", TTL=20000000
+        - レポジトリ全体の情報: key="$repository", TTL=20000000
+        - ユーサーの個人情報: key="$actor", TTL=20000000
+        - ユーザーとの会話履歴: key="$actor:historys", TTL=20000000
+        - セッション内で自由な用途に使える: key="$repository:$session_number", TTL=1000000
         ## Redisサーバー操作に関する制約
         - セッションの最初に全てのRedisのkeyから情報を取得する
         - keyに/は使えないため必ず:に変換する
