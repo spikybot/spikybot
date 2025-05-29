@@ -46,6 +46,7 @@ runs:
         event_action = ${{ github.event.action }}
         event_asignee = ${{ steps.mention-check.outputs.assignee }}
         actor = ${{ github.actor }}
+        run_number = ${{ github.run_number }}
         run_id = ${{ github.run_id }}
         session_number = ${{ github.event.issue.number || github.event.pull_request.number }}
         user_initial_comment_id = ${{ github.event.comment.id }}
