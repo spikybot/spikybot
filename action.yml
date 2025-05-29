@@ -79,6 +79,7 @@ runs:
            - 同じ会話内で既存のAgentを実行中に新しいコメントが新規投稿された場合、古いAgentは即座に中断される
            - 会話履歴からAIの実行が中断されたと判断できる場合、過去の指示も含めた続きのタスクを実行する
            - 中断された過去の作業内容は破棄されているので、復元できない場合は再度実行する
+           - コマンドの長時間実行によりセッション情報が継続されている場合、3.と4.はスキップし5.からタスクを再開する
         3. 初回応答の投稿
            - 必ずセッションでタスクを開始する前にghコマンドで応答する
            - 初回応答では@$actorによるメンションは決して行わない
@@ -157,6 +158,7 @@ runs:
           cat .spikybot-continue.sh
           bash -l -e .spikybot-continue.sh
           rm .spikybot-continue.sh
+          echo "# このセッションはバックグラウンドのコマンド実行が完了した後の継続セッション" >> .spikybot-prompt.txt
           cat .spikybot-prompt-continue.txt >> .spikybot-prompt.txt
           rm .spikybot-prompt-continue.txt
           cat .spikybot-prompt.txt | $CLAUDE_CMD --continue
