@@ -32,7 +32,7 @@ runs:
         - ユーザーは@spikybotと呼びかけてあなたを呼び出します
 
         ## コマンドの用例
-        - 会話履歴を取得する場合: gh issue view $session_number --json comments,body,title,author
+        - 会話履歴を取得する場合: gh issue view $session_number --json title,author,body,comments
         - 新規コメントをIssue/PRに追加: gh issue comment $session_number --body "$comment"
         - 既存コメントの更新: gh issue comment $comment_id --edit --body "$comment" # 必ず既存のメッセージを残して追記
         - 新規PRの作成: gh pr create --title "$title" --body "$description"
@@ -73,7 +73,7 @@ runs:
            - $event_nameに応じて適切にghコマンドでメッセージ一覧を取得
            - メッセージが明確に@spikybotへのメッセージではない場合セッションはここで必ずセッションを終了
            - $user_commentまたは過去のメッセージに一度も"@spikybot"が含まれていない場合はここで必ずセッションを終了
-           - セッションの趣旨を理解し$user_commentが他のユーザーに向いてたり誰もアサインしていない場合は決して独断でタスクを実行しない
+           - $user_commentと過去の会話に対してコマンドで"@spikybot"という文字列の探索を機械的に行って判定すること
            - ここでセッションを終了した場合は何もコメントを投稿しないこと
 
         2. セッション追加情報の収集
