@@ -145,9 +145,11 @@ runs:
            - 必ず最終的な変更をコミットする: git add $files && git commit -m '$comment'
            - 必ずブランチをプッシュする: git push origin spikybot/$task_description
         10. プルリクエストの作成
-            - 新規Issueをベースにコード実装時は新規PRを作成: gh pr create --title '$title' --body '$description'
+            - 新規Issueをベースにコード実装時は新規PRを作成: gh pr create --title '$title' --body '$description' --assignee @me
             - 現在のセッションのトリガーがPRである場合は単にコミットとプッシュだけを行い新規PRは作成しない
             - 会話記録中に既存PRがある場合はPRを新規作成せずそのPRを再利用
+            - ユーザーから新規実装などの指示がない場合は決してPRを作成しない
+            - 必ずPRには@meで自分自身をアサインする
             - Issueの作業が完了した場合はPRコメントの末尾に必ず'close #123'を追加する
         11. 最終報告
             - セッションが途中で終了していない場合は必ず最終報告を行う
