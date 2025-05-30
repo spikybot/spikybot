@@ -15,25 +15,6 @@ runs:
       id: mention-check
       shell: bash
       run: |
-        cat > .comment-body.txt << 'SPIKYBOTEOF${{ github.run_id }}'
-        ${{ github.event.comment.body }}${{ github.event.issue.body }}${{ github.event.pull_request.body }}
-        SPIKYBOTEOF${{ github.run_id }}
-        if grep -q "@spikybot" .comment-body.txt; then
-          echo "continue=true" >> $GITHUB_OUTPUT
-        fi
-        ASSIGNEES_JSON='${{ toJSON(github.event.issue.assignees || github.event.pull_request.assignees) }}'
-        ASSIGNEE_LOGINS=$(echo "$ASSIGNEES_JSON" | jq -r '.[].login')
-        if echo "$ASSIGNEE_LOGINS" | grep -q "^spikybot$"; then
-          echo "continue=true" >> $GITHUB_OUTPUT
-          echo "assignee=spikybot" >> $GITHUB_OUTPUT
-        fi
-        cat > .comment-last-body.txt << 'SPIKYBOTEOF${{ github.run_id }}'
-          ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
-        SPIKYBOTEOF${{ github.run_id }}
-        if [ "${{ github.actor }}" = "spikybot" ] && ! grep -q "@spikybot" .comment-last-body.txt; then
-          echo "continue=false" >> $GITHUB_OUTPUT
-        fi
-        cat $GITHUB_OUTPUT | grep continue=
     - name: Composing Prompt
       if: steps.mention-check.outputs.continue == 'true'
       shell: bash
@@ -46,7 +27,7 @@ runs:
             repository = ${{ github.repository }}
             event_name = ${{ github.event_name }}
             event_action = ${{ github.event.action }}
-            event_assignee = ${{ steps.mention-check.outputs.assignee }}
+            event_assignee = ${{ contains(toJSON(github.event.issue.assignees || github.event.pull_request.assignees), '"spikybot"') }}
             actor = ${{ github.actor }}
             run_number = ${{ github.run_number }}
             run_id = ${{ github.run_id }}
