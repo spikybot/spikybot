@@ -87,8 +87,8 @@ runs:
         
         GUARD mention_validation:
           CHECK:
-            - bot_mention IN conversation OR event_assignee INCLUDES "spikybot"
-            - NOT (actor == "spikybot" AND bot_mention NOT IN last_comment)
+            - bot_mention IN user_comment OR event_assignee == true
+            - NOT (actor == "spikybot" AND bot_mention NOT IN user_comment)
           ON_FAIL:
             - EXIT(0)
           RETRY_LIMIT: 0
