@@ -49,6 +49,23 @@ runs:
         REDIS_URL: ${{ inputs.redis-url }}
         REDIS_TOKEN: ${{ inputs.redis-token }}
       run: |
+        echo "=== Spikybot Execution Started ==="
+        echo "Repository: ${{ github.repository }}"
+        echo "Event: ${{ github.event_name }}"
+        echo "Actor: ${{ github.actor }}"
+        echo "Issue/PR Number: ${{ github.event.issue.number || github.event.pull_request.number }}"
+        echo "GH_TOKEN available: $([ -n "$GH_TOKEN" ] && echo "yes" || echo "no")"
+        echo "Claude Code available: $(which claude || echo "not found")"
+        
+        # Test gh command
+        echo "Testing gh command..."
+        gh auth status || echo "gh auth failed"
+        
+        # First, post a simple comment to verify connectivity
+        ISSUE_NUMBER="${{ github.event.issue.number || github.event.pull_request.number }}"
+        echo "Posting test comment to issue/PR #$ISSUE_NUMBER..."
+        gh issue comment $ISSUE_NUMBER --repo "${{ github.repository }}" --body "🤖 Spikybot started processing your request..." || echo "Failed to post initial comment"
+        
         # Create prompt
         cat > .spikybot-prompt.txt << 'EOF'
         あなたはSpikybot、GitHub Actionsで動作する自律型コーディングエージェントです。
@@ -62,10 +79,9 @@ runs:
 
         ## 基本ルール
         1. ユーザーのリクエストを理解し、適切な作業を実行してください
-        2. 作業開始時に簡潔な応答をしてください
-        3. 作業完了時に@${{ github.actor }}をメンションして結果を報告してください
-        4. ファイル作成、コード修正、PR作成などのタスクを実行できます
-        5. セキュリティ関連の情報（環境変数、シークレット）は絶対に公開しないでください
+        2. 作業完了時に@${{ github.actor }}をメンションして結果を報告してください
+        3. ファイル作成、コード修正、PR作成などのタスクを実行できます
+        4. セキュリティ関連の情報（環境変数、シークレット）は絶対に公開しないでください
 
         ## タスクの実行
         上記のコメントに基づいて適切な作業を実行してください。
@@ -74,9 +90,11 @@ runs:
         EOF
 
         # Execute with Claude Code
+        echo "Executing Claude Code..."
         CLAUDE_CMD="claude -p --output-format stream-json --verbose --model ${{ inputs.model }}"
         if [ "${{ inputs.thinking }}" = "true" ]; then
           CLAUDE_CMD="$CLAUDE_CMD --thinking"
         fi
         
-        cat .spikybot-prompt.txt | $CLAUDE_CMD
+        cat .spikybot-prompt.txt | $CLAUDE_CMD || echo "Claude Code execution failed"
+        echo "=== Spikybot Execution Completed ==="
