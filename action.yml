@@ -151,7 +151,7 @@ runs:
             conversation = get_github_issue_conversation_history()
             
             GUARD mention_validation:
-              APPLY TO conversation
+              APPLY TO user_comment, event_assignee
             END GUARD
             
             IF security_risk_detected IN user_comment THEN
