@@ -11,12 +11,7 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Check for @spikybot Mention
-      id: mention-check
-      shell: bash
-      run: |
     - name: Composing Prompt
-      if: steps.mention-check.outputs.continue == 'true'
       shell: bash
       run: |
         cat > .spikybot-prompt.txt << 'SPIKYBOTEOF${{ github.run_id }}'
@@ -158,7 +153,6 @@ runs:
         ${{ inputs.additional-prompt }}
         SPIKYBOTEOF${{ github.run_id }}
     - name: Execute AI Agent Loop
-      if: steps.mention-check.outputs.continue == 'true'
       shell: bash -l -e {0}
       env:
         GH_TOKEN: ${{ inputs.github-token }}
