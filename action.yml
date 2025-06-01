@@ -3,8 +3,6 @@ description: 'Autonomous coding agent running on GitHub Actions with Claude Code
 author: 'SpiceEngine'
 inputs:
   github-token: {description: 'GitHub Token', required: false}
-  model: {description: 'Claude model to use (sonnet, opus)', required: false, default: 'sonnet'}
-  thinking: {description: 'Enable thinking mode (true/false)', required: false, default: 'false'}
   additional-prompt: {description: 'Additional Prompt', required: false}
   redis-url: {description: 'Upstash Redis Rest URL', required: false}
   redis-token: {description: 'Upstash Redis Rest Token', required: false}
@@ -77,15 +75,29 @@ runs:
         1. 会話状況の確認
            - $event_nameに応じてgh issue viewコマンドでコメント一覧を取得
            - $event_asigneeに自分が含まれているか確認
-           - 新規IssueやPRに@spikybotが含まれていない場合は絶対に返信しないで必ずセッションを終了
-           - コメントが@spikybotへのコメントではない可能性が少しでもある場合ここで必ずセッションを終了
-           - ここでセッションを終了した場合は何もコメントを投稿しないこと
+           - IF(新規IssueやPRに@spikybotが含まれていない場合):
+             - 絶対に返信しない
+             - 必ずセッションを終了
+             - 何もコメントを投稿しないこと
+             - EXIT(0)
+           - ENDIF
+           - IF(コメントが@spikybotへのコメントではない可能性が少しでもある場合):
+             - 絶対に返信しない
+             - 必ずセッションを終了
+             - 何もコメントを投稿しないこと
+             - EXIT(0)
+           - ENDIF
         2. セッション追加情報の収集
            - 全てのRedis情報を取得する
            - 同じ会話内で既存のAgentを実行中に新しいコメントが新規投稿された場合、古いAgentは即座に中断される
-           - 会話履歴からAIの実行が中断されたと判断できる場合、過去の指示も含めた続きのタスクを実行する
-           - 中断された過去の作業内容は破棄されているので、復元できない場合は再度実行する
-           - バックグラウンドコマンドの長時間実行による継続セッションの場合、3.と4.はスキップし5.からタスクを再開する
+           - IF(会話履歴からAIの実行が中断されたと判断できる場合):
+             - 過去の指示も含めた続きのタスクを実行する
+             - 中断された過去の作業内容は破棄されているので復元できない場合は再度実行する
+           - ENDIF
+           - IF(バックグラウンドコマンドの長時間実行による継続セッションの場合):
+             - 3.と4.はスキップする
+             - 5.からタスクを再開する
+           - ENDIF
         3. 初回応答の投稿
            - 必ずセッションでタスクを開始する前にghコマンドで応答する
            - コマンド例: $agent_initial_comment_id = gh issue comment $session_number --body '$comment'
@@ -94,7 +106,11 @@ runs:
            - タスクの場合のコメント例：'$task_titleのタスクを受け取りました。$task_planを開始します...\n[Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})'
            - タスクの指示でない場合は適宜あなたが考えたコメントを投稿する
            - 必ず投稿結果を$agent_initial_comment_idとして記録する
-           - 例外: 雑談や質問などの場合でツールを使用せずに即座に回答できる場合は今すぐ@$actorを先頭につけた初回応答を行いここで必ずセッションを終了
+           - IF(雑談や質問などの場合でツールを使用せずに即座に回答できる場合):
+             - 今すぐ@$actorを先頭につけた初回応答を行う
+             - ここで必ずセッションを終了する
+             - EXIT(0)
+           - ENDIF
            - Actionsの$run_idをRedisのセッション情報に追記する
         4. ブランチ管理
            - 初めに現在のブランチを確認する: git branch --show-current
@@ -123,11 +139,20 @@ runs:
            - 進捗状況の報告において新規コメントを作成してはならない
            - 進行中のタスクの報告は必ず--editを用いて初期応答を編集する形で行って下さい
         8. エラーハンドリング
-           - エラーが発生し解決できない場合は即座に最終報告に移動する
-           - 不明点がある場合もユーザーの意思決定を重視して即座に最終報告に移動する
+           - IF(エラーが発生し解決できない場合):
+             - 即座に最終報告に移動する
+           - ENDIF
+           - IF(不明点がある場合):
+             - ユーザーの意思決定を重視する
+             - 即座に最終報告に移動する
+           - ENDIF
            - エラーや不明点に関する報告はコマンドのエラーログや質問内容などを加工せずにそのまま最終報告に含める
-           - エラーの場合はデバッグに必要な開発環境の情報を最終報告に含める
-           - エラーログが50行を超える場合は適宜切り出しを行うことを許可する
+           - IF(エラーの場合):
+             - デバッグに必要な開発環境の情報を最終報告に含める
+           - ENDIF
+           - IF(エラーログが50行を超える場合):
+             - 適宜切り出しを行うことを許可する
+           - ENDIF
         9. 作業の完了と最終コミット
            - 必ず現在のブランチ状況を再確認する: git branch --show-current && git status
            - 必ず最終的な変更をコミットする: git add $files && git commit -m '$comment'
@@ -142,12 +167,20 @@ runs:
         11. 最終報告
             - 必ず最終報告を行う
             - 最終報告は必ず新しいコメントとして投稿する
-            - セッションが途中で終了している場合は最終報告を行わない
+            - IF(セッションが途中で終了している場合):
+              - 最終報告を行わない
+              - EXIT(0)
+            - ENDIF
             - 必ず先頭に@$actorを含めてこのセッションに関連する全てのユーザーに通知を送る($actorの後ろには半角スペースが必要)
             - 最終報告はMarkdownで作成する
             - 最終報告では、作業内容の要約、コマンドの実行履歴と出力、最終的な結論を必要な情報を全て含めて簡潔に報告する
-            - ファイルを作成/修正した場合は必ず変更内容を最終報告に含める(ただしソースコードの差分全体はPRで見れるので不要)
-            - Issueをベースにプルリクエストを作成/編集した場合は必ず該当の #$pr_number を全て最終報告に含める
+            - IF(ファイルを作成/修正した場合):
+              - 必ず変更内容を最終報告に含める
+              - ただしソースコードの差分全体はPRで見れるので不要
+            - ENDIF
+            - IF(Issueをベースにプルリクエストを作成/編集した場合):
+              - 必ず該当の #$pr_number を全て最終報告に含める
+            - ENDIF
             - 全てのRedisのkeyをJSONで更新する
         # レポジトリによる追加のプロンプト
         ${{ inputs.additional-prompt }}
@@ -159,11 +192,9 @@ runs:
         REDIS_URL: ${{ inputs.redis-url }}
         REDIS_TOKEN: ${{ inputs.redis-token }}
       run: |
-        CLAUDE_CMD="claude -p --output-format stream-json --verbose --model ${{ inputs.model }}"
-        if [ "${{ inputs.thinking }}" = "true" ]; then
-          CLAUDE_CMD="$CLAUDE_CMD --thinking"
-        fi
-        cat .spikybot-prompt.txt | $CLAUDE_CMD
+        # Execute Claude command
+        cat .spikybot-prompt.txt | claude --print --output-format stream-json --verbose --model sonnet
+        
         # 長時間コマンドのタイムアウト対策
         while [ -f ".spikybot-continue.sh" ]; do
           cat .spikybot-continue.sh
@@ -172,5 +203,13 @@ runs:
           echo "# このセッションはバックグラウンドのコマンド実行が完了した後の継続セッション" >> .spikybot-prompt.txt
           cat .spikybot-prompt-continue.txt >> .spikybot-prompt.txt
           rm .spikybot-prompt-continue.txt
-          cat .spikybot-prompt.txt | $CLAUDE_CMD --continue
+          cat .spikybot-prompt.txt | claude --print --output-format stream-json --verbose --model sonnet
         done
+    - name: Handle Errors
+      if: failure()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        SESSION_NUMBER="${{ github.event.issue.number || github.event.pull_request.number }}"
+        gh issue comment "$SESSION_NUMBER" --body "@${{ github.actor }} An error has occurred [Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
