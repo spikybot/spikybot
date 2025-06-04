@@ -176,6 +176,12 @@ runs:
         # Set session number
         SESSION_NUMBER="${{ github.event.issue.number || github.event.pull_request.number }}"
         
+        # Post initial response first
+        INITIAL_RESPONSE="考えています... [Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        COMMENT_OUTPUT=$(gh issue comment "$SESSION_NUMBER" --body "$INITIAL_RESPONSE" 2>&1)
+        AGENT_INITIAL_COMMENT_ID=$(echo "$COMMENT_OUTPUT" | grep -o 'issuecomment-[0-9]*' | sed 's/issuecomment-//')
+        export AGENT_INITIAL_COMMENT_ID
+        
         # Fetch Redis data if available
         if [ -n "$REDIS_URL" ] && [ -n "$REDIS_TOKEN" ]; then
           echo "# Redis データベース情報" >> .spikybot-prompt.txt
@@ -204,12 +210,6 @@ runs:
           
           echo "" >> .spikybot-prompt.txt
         fi
-        
-        # Post initial response
-        INITIAL_RESPONSE="考えています... [Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
-        COMMENT_OUTPUT=$(gh issue comment "$SESSION_NUMBER" --body "$INITIAL_RESPONSE" 2>&1)
-        AGENT_INITIAL_COMMENT_ID=$(echo "$COMMENT_OUTPUT" | grep -o 'issuecomment-[0-9]*' | sed 's/issuecomment-//')
-        export AGENT_INITIAL_COMMENT_ID
         
         # Execute Claude command
         cat .spikybot-prompt.txt | claude --print --output-format stream-json --verbose --model sonnet
