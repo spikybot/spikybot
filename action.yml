@@ -219,7 +219,8 @@ runs:
         
         # Post initial response
         INITIAL_RESPONSE="考えています... [Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
-        AGENT_INITIAL_COMMENT_ID=$(gh issue comment "$SESSION_NUMBER" --body "$INITIAL_RESPONSE" --json id --jq '.id')
+        COMMENT_OUTPUT=$(gh issue comment "$SESSION_NUMBER" --body "$INITIAL_RESPONSE" 2>&1)
+        AGENT_INITIAL_COMMENT_ID=$(echo "$COMMENT_OUTPUT" | grep -o 'issuecomment-[0-9]*' | sed 's/issuecomment-//')
         export AGENT_INITIAL_COMMENT_ID
         
         # Execute Claude command
