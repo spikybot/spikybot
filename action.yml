@@ -42,8 +42,8 @@ runs:
              * ユーザー情報: key="user:$actor:{{description}}" (TTLなし)
            - Redis操作制約:
              * 全てのvalueは日本語の文章として保存する
-             * 各キーには説明的なdescriptionを末尾に付与する（例: org:spiceengine:開発チームの規約）
-             * descriptionは内容に応じてAIが生成する適切な日本語の説明
+             * 各キーには説明的なdescriptionを末尾に付与する（例: org:spiceengine:coding-standards）
+             * descriptionは内容に応じてAIが生成する適切な英語のkebab-case形式
              * 環境変数$REDIS_URLと$REDIS_TOKENが存在しない場合はRedis操作に関する指示を無視する
              * セッションを跨いで永続化したい情報は適切なキーに日本語で保存する
              * コーディング規約やAgentの挙動に関する注意点は組織情報に保存する
