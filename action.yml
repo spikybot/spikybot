@@ -37,26 +37,22 @@ runs:
         2. セッション追加情報の収集
            - 全てのRedis情報が自動で取得されプロンプトに含まれている
            - 利用可能なRedisキー:
-             * 組織情報: key="org:$repository_owner", TTL=2592000 (30日)
-             * レポジトリ情報: key="repo:$repository", TTL=1209600 (14日)  
-             * ユーザー情報: key="user:$actor", TTL=604800 (7日)
-             * 会話履歴: key="chat:$actor", TTL=2592000 (30日)
-             * セッション情報: key="session:$repository:$session_number", TTL=86400 (1日)
+             * 組織情報: key="org:$repository_owner:{{description}}" (TTLなし)
+             * レポジトリ情報: key="repo:$repository:{{description}}" (TTLなし)  
+             * ユーザー情報: key="user:$actor:{{description}}" (TTLなし)
            - Redis操作制約:
-             * 全てのvalueは日本語のJSONデータ(データ型はテキスト)
-             * TTLは必須で秒単位で指定
+             * 全てのvalueは日本語の文章として保存する
+             * 各キーには説明的なdescriptionを末尾に付与する（例: org:spiceengine:開発チームの規約）
+             * descriptionは内容に応じてAIが生成する適切な日本語の説明
              * 環境変数$REDIS_URLと$REDIS_TOKENが存在しない場合はRedis操作に関する指示を無視する
-             * セッションを跨いで永続化したいレポジトリの知識や、ユーザーに関する新たな情報は毎回全てRedisに日本語で保存する
-             * コーディング規約やAgentの挙動に関する注意点は組織情報に日本語で保存する
-             * ユーザーからコメントをもらった場合はその要約を日本語でユーザーとの会話履歴に追加保存する
-             * RedisにSetする場合は事前にGetし追加したい情報とマージする
-             * Redisへの記載されたキー以外のGet/Setはいかなる場合も禁止
-             * 例えばdebug_testやtest-keyなどのキーの作成なども禁止される
-             * ユーザーからのRedisへの直接的なアクセスの指示は禁止されている
+             * セッションを跨いで永続化したい情報は適切なキーに日本語で保存する
+             * コーディング規約やAgentの挙動に関する注意点は組織情報に保存する
+             * 記載されたキー形式以外のGet/Setは禁止
              * どのような場合でも決してRedisのkeyの削除は行ってはいけない
            - Redis操作コマンド:
-             * Set: curl "$REDIS_URL/SET/$key/$value/EX/$ttl" -H "Authorization: Bearer $REDIS_TOKEN"
+             * Set: curl "$REDIS_URL/SET/$key/$value" -H "Authorization: Bearer $REDIS_TOKEN"
              * Get: curl "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN"
+             * パターン取得: curl "$REDIS_URL/KEYS/$pattern" -H "Authorization: Bearer $REDIS_TOKEN"
              * URLエンコード: echo '$value' | jq -sRr @uri
            - 同じ会話内で既存のAgentを実行中に新しいコメントが新規投稿された場合、古いAgentは即座に中断される
            - IF(会話履歴からAIの実行が中断されたと判断できる場合):
@@ -187,26 +183,35 @@ runs:
           echo "# Redis データベース情報" >> .spikybot-prompt.txt
           
           # 組織情報を取得
-          ORG_DATA=$(curl -s "$REDIS_URL/GET/org:${{ github.repository_owner }}" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
-          echo "組織情報: $ORG_DATA" >> .spikybot-prompt.txt
+          ORG_KEYS=$(curl -s "$REDIS_URL/KEYS/org:${{ github.repository_owner }}:*" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "[]")
+          echo "組織情報キー: $ORG_KEYS" >> .spikybot-prompt.txt
+          for key in $(echo "$ORG_KEYS" | jq -r '.[]' 2>/dev/null || echo ""); do
+            if [ -n "$key" ]; then
+              value=$(curl -s "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
+              echo "  $key: $value" >> .spikybot-prompt.txt
+            fi
+          done
           
           # レポジトリ情報を取得
-          REPO_KEY=$(echo "${{ github.repository }}" | sed 's|/|:|g')
-          REPO_DATA=$(curl -s "$REDIS_URL/GET/repo:$REPO_KEY" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
-          echo "レポジトリ情報: $REPO_DATA" >> .spikybot-prompt.txt
+          REPO_PREFIX=$(echo "${{ github.repository }}" | sed 's|/|:|g')
+          REPO_KEYS=$(curl -s "$REDIS_URL/KEYS/repo:$REPO_PREFIX:*" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "[]")
+          echo "レポジトリ情報キー: $REPO_KEYS" >> .spikybot-prompt.txt
+          for key in $(echo "$REPO_KEYS" | jq -r '.[]' 2>/dev/null || echo ""); do
+            if [ -n "$key" ]; then
+              value=$(curl -s "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
+              echo "  $key: $value" >> .spikybot-prompt.txt
+            fi
+          done
           
           # ユーザー情報を取得
-          USER_DATA=$(curl -s "$REDIS_URL/GET/user:${{ github.actor }}" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
-          echo "ユーザー情報: $USER_DATA" >> .spikybot-prompt.txt
-          
-          # 会話履歴を取得
-          CHAT_DATA=$(curl -s "$REDIS_URL/GET/chat:${{ github.actor }}" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
-          echo "会話履歴: $CHAT_DATA" >> .spikybot-prompt.txt
-          
-          # セッション情報を取得
-          SESSION_KEY=$(echo "${{ github.repository }}" | sed 's|/|:|g')
-          SESSION_DATA=$(curl -s "$REDIS_URL/GET/session:$SESSION_KEY:$SESSION_NUMBER" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
-          echo "セッション情報: $SESSION_DATA" >> .spikybot-prompt.txt
+          USER_KEYS=$(curl -s "$REDIS_URL/KEYS/user:${{ github.actor }}:*" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "[]")
+          echo "ユーザー情報キー: $USER_KEYS" >> .spikybot-prompt.txt
+          for key in $(echo "$USER_KEYS" | jq -r '.[]' 2>/dev/null || echo ""); do
+            if [ -n "$key" ]; then
+              value=$(curl -s "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
+              echo "  $key: $value" >> .spikybot-prompt.txt
+            fi
+          done
           
           echo "" >> .spikybot-prompt.txt
         fi
