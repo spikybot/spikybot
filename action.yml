@@ -3,8 +3,6 @@ description: 'Autonomous coding agent running on GitHub Actions with Claude Code
 author: 'SpiceEngine'
 inputs:
   github-token: {description: 'GitHub Token', required: false}
-  redis-url: {description: 'Upstash Redis Rest URL', required: false}
-  redis-token: {description: 'Upstash Redis Rest Token', required: false}
 runs:
   using: 'composite'
   steps:
@@ -17,75 +15,75 @@ runs:
         
         # sb-update: 進捗報告（--editで自動更新）
         cat > "$SB_DIR/bin/sb-update" << 'EOF'
-#!/bin/bash
-MESSAGE="$*"
-HISTORY_FILE="$SB_DIR/update-history.txt"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] $MESSAGE" >> "$HISTORY_FILE"
-gh issue comment "$SESSION_NUMBER" --edit "$AGENT_INITIAL_COMMENT_ID" --body "$MESSAGE"
-EOF
+        #!/bin/bash
+        MESSAGE="$*"
+        HISTORY_FILE="$SB_DIR/update-history.txt"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] $MESSAGE" >> "$HISTORY_FILE"
+        gh issue comment "$SESSION_NUMBER" --edit "$AGENT_INITIAL_COMMENT_ID" --body "$MESSAGE"
+        EOF
         
         # sb-view: Issue/PR情報取得
         cat > "$SB_DIR/bin/sb-view" << 'EOF'
-#!/bin/bash
-gh issue view "$SESSION_NUMBER" --json title,author,body,comments
-EOF
+        #!/bin/bash
+        gh issue view "$SESSION_NUMBER" --json title,author,body,comments
+        EOF
         
         # sb-pr: PR作成とPR番号出力
         cat > "$SB_DIR/bin/sb-pr" << 'EOF'
-#!/bin/bash
-TITLE="$1"
-BODY="$2"
-PR_OUTPUT=$(gh pr create --title "$TITLE" --body "$BODY" --assignee "@me" 2>&1)
-PR_NUMBER=$(echo "$PR_OUTPUT" | grep -o 'pull/[0-9]*' | sed 's/pull\///')
-echo "$PR_OUTPUT"
-echo "PR_NUMBER: $PR_NUMBER"
-EOF
+        #!/bin/bash
+        TITLE="$1"
+        BODY="$2"
+        PR_OUTPUT=$(gh pr create --title "$TITLE" --body "$BODY" --assignee "@me" 2>&1)
+        PR_NUMBER=$(echo "$PR_OUTPUT" | grep -o 'pull/[0-9]*' | sed 's/pull\///')
+        echo "$PR_OUTPUT"
+        echo "PR_NUMBER: $PR_NUMBER"
+        EOF
         
         # sb-finalize: 最終報告（自動的に@メンション付与）
         cat > "$SB_DIR/bin/sb-finalize" << 'EOF'
-#!/bin/bash
-COMMENT="$*"
-FINAL_MESSAGE="@${{ github.actor }} $COMMENT"
-gh issue comment "$SESSION_NUMBER" --body "$FINAL_MESSAGE"
-EOF
+        #!/bin/bash
+        COMMENT="$*"
+        FINAL_MESSAGE="@${{ github.actor }} $COMMENT"
+        gh issue comment "$SESSION_NUMBER" --body "$FINAL_MESSAGE"
+        EOF
         
         # sb-continue: 継続スクリプト作成
         cat > "$SB_DIR/bin/sb-continue" << 'EOF'
-#!/bin/bash
-SITUATION="$1"
-shift
-COMMAND="$*"
-
-# 継続スクリプト作成
-cat > "$SB_DIR/continue.sh" << SCRIPT
-#!/bin/bash
-$COMMAND
-SCRIPT
-chmod +x "$SB_DIR/continue.sh"
-
-# プロンプト継続ファイル作成
-cat > "$SB_DIR/prompt-continue.txt" << PROMPT
-$SITUATION
-再開時に実行すべきコマンド: $COMMAND
-PROMPT
-
-echo "継続スクリプトを作成しました: $SB_DIR/continue.sh"
-EOF
+        #!/bin/bash
+        SITUATION="$1"
+        shift
+        COMMAND="$*"
+        
+        # 継続スクリプト作成
+        cat > "$SB_DIR/continue.sh" << SCRIPT
+        #!/bin/bash
+        $COMMAND
+        SCRIPT
+        chmod +x "$SB_DIR/continue.sh"
+        
+        # プロンプト継続ファイル作成
+        cat > "$SB_DIR/prompt-continue.txt" << PROMPT
+        $SITUATION
+        再開時に実行すべきコマンド: $COMMAND
+        PROMPT
+        
+        echo "継続スクリプトを作成しました: $SB_DIR/continue.sh"
+        EOF
         
         # sb-debug: デバッグ情報収集
         cat > "$SB_DIR/bin/sb-debug" << 'EOF'
-#!/bin/bash
-echo "=== デバッグ情報 ==="
-echo "Node: $(node --version 2>/dev/null || echo 'not installed')"
-echo "NPM: $(npm --version 2>/dev/null || echo 'not installed')"
-echo "Git: $(git --version)"
-echo "PWD: $(pwd)"
-echo "Branch: $(git branch --show-current 2>/dev/null || echo 'not in git repo')"
-echo "Files:"
-ls -la
-echo "Git Status:"
-git status 2>/dev/null || echo 'not in git repo'
-EOF
+        #!/bin/bash
+        echo "=== デバッグ情報 ==="
+        echo "Node: $(node --version 2>/dev/null || echo 'not installed')"
+        echo "NPM: $(npm --version 2>/dev/null || echo 'not installed')"
+        echo "Git: $(git --version)"
+        echo "PWD: $(pwd)"
+        echo "Branch: $(git branch --show-current 2>/dev/null || echo 'not in git repo')"
+        echo "Files:"
+        ls -la
+        echo "Git Status:"
+        git status 2>/dev/null || echo 'not in git repo'
+        EOF
         
         # 実行権限付与とパス設定
         chmod +x "$SB_DIR/bin"/*
@@ -121,7 +119,6 @@ EOF
            - $event_nameに応じてsb-viewコマンドでコメント一覧を取得
            - コメントに@spikybotが含まれることは既にワークフロー条件で確認済み
         2. セッション追加情報の収集
-           - 全てのRedis情報が自動で取得されプロンプトに含まれている
            - 同じ会話内で既存のAgentを実行中に新しいコメントが新規投稿された場合、古いAgentは即座に中断される
            - 会話履歴からAIの実行が中断されたと判断できる場合の処理:
              * sb-viewで会話履歴を確認
@@ -131,7 +128,7 @@ EOF
              * 過去のコメントで言及されたファイルがある場合はそのファイルを確認
            - バックグラウンドコマンドの長時間実行による継続セッションの場合の処理:
              * $SB_DIR/prompt-continue.txtが存在する場合は継続セッション
-             * 既に初回応答とRedis情報収集は完了済みのため直接タスク実行に進む
+             * 既に初回応答は完了済みのため直接タスク実行に進む
              * git statusで現在のブランチと作業状況を確認
              * 継続指示に従ってタスクを再開
         3. 初回応答について
@@ -233,8 +230,6 @@ EOF
       shell: bash -l -e {0}
       env:
         GH_TOKEN: ${{ inputs.github-token }}
-        REDIS_URL: ${{ inputs.redis-url }}
-        REDIS_TOKEN: ${{ inputs.redis-token }}
       run: |
         # Set session number and SB_DIR
         SESSION_NUMBER="${{ github.event.issue.number || github.event.pull_request.number }}"
@@ -247,44 +242,6 @@ EOF
         export AGENT_INITIAL_COMMENT_ID
         export SESSION_NUMBER
         export PATH="$SB_DIR/bin:$PATH"
-        
-        # Fetch Redis data if available
-        if [ -n "$REDIS_URL" ] && [ -n "$REDIS_TOKEN" ]; then
-          echo "# Redis データベース情報" >> "$SB_DIR/spikybot-prompt.txt"
-          
-          # 組織情報を取得
-          ORG_KEYS=$(curl -s "$REDIS_URL/KEYS/org:${{ github.repository_owner }}:*" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "[]")
-          echo "組織情報キー: $ORG_KEYS" >> "$SB_DIR/spikybot-prompt.txt"
-          for key in $(echo "$ORG_KEYS" | jq -r '.[]' 2>/dev/null || echo ""); do
-            if [ -n "$key" ]; then
-              value=$(curl -s "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
-              echo "  $key: $value" >> "$SB_DIR/spikybot-prompt.txt"
-            fi
-          done
-          
-          # レポジトリ情報を取得
-          REPO_PREFIX=$(echo "${{ github.repository }}" | sed 's|/|:|g')
-          REPO_KEYS=$(curl -s "$REDIS_URL/KEYS/repo:$REPO_PREFIX:*" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "[]")
-          echo "レポジトリ情報キー: $REPO_KEYS" >> "$SB_DIR/spikybot-prompt.txt"
-          for key in $(echo "$REPO_KEYS" | jq -r '.[]' 2>/dev/null || echo ""); do
-            if [ -n "$key" ]; then
-              value=$(curl -s "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
-              echo "  $key: $value" >> "$SB_DIR/spikybot-prompt.txt"
-            fi
-          done
-          
-          # ユーザー情報を取得
-          USER_KEYS=$(curl -s "$REDIS_URL/KEYS/user:${{ github.actor }}:*" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "[]")
-          echo "ユーザー情報キー: $USER_KEYS" >> "$SB_DIR/spikybot-prompt.txt"
-          for key in $(echo "$USER_KEYS" | jq -r '.[]' 2>/dev/null || echo ""); do
-            if [ -n "$key" ]; then
-              value=$(curl -s "$REDIS_URL/GET/$key" -H "Authorization: Bearer $REDIS_TOKEN" 2>/dev/null || echo "null")
-              echo "  $key: $value" >> "$SB_DIR/spikybot-prompt.txt"
-            fi
-          done
-          
-          echo "" >> "$SB_DIR/spikybot-prompt.txt"
-        fi
         
         # Execute Claude command
         cat "$SB_DIR/spikybot-prompt.txt" | claude --print --output-format stream-json --verbose --model sonnet
