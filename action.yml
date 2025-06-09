@@ -66,8 +66,6 @@ runs:
         $SITUATION
         再開時に実行すべきコマンド: $COMMAND
         PROMPT
-        
-        echo "継続スクリプトを作成しました: $SB_DIR/continue.sh"
         EOF
         
         # sb-debug: デバッグ情報収集
@@ -98,7 +96,6 @@ runs:
         fi
         
         gh pr edit "$PR_NUMBER" --title "$TITLE" --body "$BODY"
-        echo "PR #$PR_NUMBER を更新しました"
         EOF
         
         # sb-git-add: 安全なgit add（.や-A禁止）
@@ -118,7 +115,6 @@ runs:
         done
         
         git add "$@"
-        echo "ファイルをステージングしました: $*"
         EOF
         
         # sb-git-push: 安全なgit push（spikybot/*ブランチのみ）
@@ -133,7 +129,6 @@ runs:
         fi
         
         git push origin "$CURRENT_BRANCH" "$@"
-        echo "ブランチ '$CURRENT_BRANCH' をプッシュしました"
         EOF
         
         # 実行権限付与とパス設定
