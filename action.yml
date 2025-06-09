@@ -85,6 +85,22 @@ runs:
         git status 2>/dev/null || echo 'not in git repo'
         EOF
         
+        # sb-pr-edit: PR更新
+        cat > "$SB_DIR/bin/sb-pr-edit" << 'EOF'
+        #!/bin/bash
+        PR_NUMBER="$1"
+        TITLE="$2"
+        BODY="$3"
+        
+        if [ -z "$PR_NUMBER" ] || [ -z "$TITLE" ] || [ -z "$BODY" ]; then
+          echo "Usage: sb-pr-edit <PR_NUMBER> <TITLE> <BODY>"
+          exit 1
+        fi
+        
+        gh pr edit "$PR_NUMBER" --title "$TITLE" --body "$BODY"
+        echo "PR #$PR_NUMBER を更新しました"
+        EOF
+        
         # 実行権限付与とパス設定
         chmod +x "$SB_DIR/bin"/*
         export PATH="$SB_DIR/bin:$PATH"
