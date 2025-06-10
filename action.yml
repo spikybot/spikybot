@@ -186,6 +186,9 @@ runs:
         export PATH="$SB_DIR/bin:$PATH"
         export SLACK_BOT_TOKEN="$SLACK_BOT_TOKEN"
         
+        # デバッグ: 環境変数確認
+        echo "Debug: SLACK_BOT_TOKEN in Execute step: ${SLACK_BOT_TOKEN:+SET}${SLACK_BOT_TOKEN:-UNSET}"
+        
         # Execute Claude command with restrictions
         cat "$SB_DIR/spikybot-prompt.txt" | claude \
           --print \
