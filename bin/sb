@@ -288,6 +288,11 @@ PROMPT
     # Canvas名を取得
     CANVAS_NAME=$(echo "$CANVAS_INFO" | jq -r '.file.name // .file.title // ""' 2>/dev/null)
     
+    # デバッグ情報
+    echo "Debug: Canvas raw info:"
+    echo "$CANVAS_INFO" | jq '.file | {name, title}' 2>/dev/null || echo "Debug: jq parse error"
+    echo "Debug: Extracted Canvas name: '$CANVAS_NAME'"
+    
     # SpikyBot/で始まるかチェック
     if [[ ! "$CANVAS_NAME" =~ ^SpikyBot/ ]]; then
       echo "Error: 'SpikyBot/'で始まるCanvas以外への追記は許可されていません"
@@ -296,7 +301,7 @@ PROMPT
       exit 1
     fi
     
-    echo "Canvas名: $CANVAS_NAME"
+    echo "Canvas名: $CANVAS_NAME (追記許可)"
     
     # 現在の時刻を取得
     TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
