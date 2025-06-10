@@ -1,2 +1,0 @@
-#!/bin/bash
-gh issue view "$SESSION_NUMBER" --json title,author,body,comments

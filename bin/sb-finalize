@@ -1,4 +1,0 @@
-#!/bin/bash
-COMMENT="$*"
-FINAL_MESSAGE="@$GITHUB_ACTOR $COMMENT"
-gh issue comment "$SESSION_NUMBER" --body "$FINAL_MESSAGE"
