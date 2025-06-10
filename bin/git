@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# 元のgitコマンドのパス
+REAL_GIT="/usr/bin/git"
+
+# addコマンドのバリデーション
+if [ "$1" = "add" ]; then
+  shift
+  if [ $# -eq 0 ]; then
+    echo "Error: ファイルの指定が必要です"
+    echo "Usage: git add <filename1> [filename2] ..."
+    exit 1
+  fi
+  
+  for arg in "$@"; do
+    if [[ "$arg" == "." ]] || [[ "$arg" == "-A" ]] || [[ "$arg" == "--all" ]]; then
+      echo "Error: '$arg' は使用禁止です。個別のファイルを指定してください。"
+      exit 1
+    fi
+  done
+  
+  exec "$REAL_GIT" add "$@"
+fi
+
+# pushコマンドのバリデーション
+if [ "$1" = "push" ]; then
+  CURRENT_BRANCH=$("$REAL_GIT" branch --show-current)
+  
+  if [[ ! "$CURRENT_BRANCH" =~ ^spikybot/ ]]; then
+    echo "Error: 現在のブランチ '$CURRENT_BRANCH' はspikybot/*ブランチではありません。"
+    echo "spikybot/で始まるブランチからのみプッシュできます。"
+    exit 1
+  fi
+  
+  # 引数がない場合はorigin/現在ブランチを設定
+  if [ $# -eq 1 ]; then
+    exec "$REAL_GIT" push origin "$CURRENT_BRANCH"
+  else
+    exec "$REAL_GIT" "$@"
+  fi
+fi
+
+# その他のコマンドはそのまま実行
+exec "$REAL_GIT" "$@"

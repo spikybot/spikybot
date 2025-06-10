@@ -1,0 +1,34 @@
+#!/bin/bash
+TITLE="$1"
+BODY="$2"
+
+if [ -z "$TITLE" ] || [ -z "$BODY" ]; then
+  echo "Usage: sb-pr '{{title}}' '{{body}}'"
+  exit 1
+fi
+
+# PRセッションでは新規PR作成を禁止
+if [ "$EVENT_NAME" = "pull_request" ]; then
+  echo "Error: PRセッション中は新規PRを作成できません"
+  echo "このPR (#$SESSION_NUMBER) を更新します"
+  gh pr edit "$SESSION_NUMBER" --title "$TITLE" --body "$BODY"
+  echo "PR #$SESSION_NUMBER を更新しました"
+  exit 0
+fi
+
+# 既存PRの確認
+EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --json number --jq '.[0].number' 2>/dev/null)
+if [ -n "$EXISTING_PR" ]; then
+  echo "既存のPR #$EXISTING_PR を更新します"
+  gh pr edit "$EXISTING_PR" --title "$TITLE" --body "$BODY"
+  echo "PR #$EXISTING_PR を更新しました"
+else
+  echo "新規PRを作成します"
+  PR_OUTPUT=$(gh pr create --title "$TITLE" --body "$BODY" --assignee "@me" 2>&1)
+  PR_NUMBER=$(echo "$PR_OUTPUT" | grep -o 'pull/[0-9]*' | sed 's/pull\///')
+  echo "$PR_OUTPUT"
+  if [ -n "$PR_NUMBER" ]; then
+    echo "LATEST_PR_NUMBER=$PR_NUMBER" >> "$GITHUB_ENV"
+    echo "PR #$PR_NUMBER を作成しました"
+  fi
+fi
