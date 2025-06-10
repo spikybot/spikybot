@@ -296,7 +296,7 @@ $CONTENT
       -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
       -H "Content-Type: application/x-www-form-urlencoded" \
       --data-urlencode "canvas_id=$CANVAS_ID" \
-      --data-urlencode "changes=[{\"operation\": \"document_append\", \"args\": {\"content\": \"$APPEND_CONTENT\"}}]" \
+      --data-urlencode "changes=[{\"operation\": \"insert_at_end\", \"document_content\": {\"type\": \"markdown\", \"markdown\": \"$APPEND_CONTENT\"}}]" \
       "https://slack.com/api/canvases.edit" | jq '.' 2>/dev/null
     
     if [ $? -eq 0 ]; then
