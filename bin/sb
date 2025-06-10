@@ -197,20 +197,29 @@ PROMPT
     # Canvas一覧取得
     echo "=== Slack Canvas一覧 ==="
     
+    # デバッグ情報
+    echo "Debug: SLACK_BOT_TOKEN設定状況: ${SLACK_BOT_TOKEN:+設定済み}${SLACK_BOT_TOKEN:-未設定}"
+    echo "Debug: トークン先頭4文字: ${SLACK_BOT_TOKEN:0:4}***"
+    
     # Slack API経由でCanvas一覧を取得
     RESPONSE=$(slack_api_call "files.list" "types=canvas&count=100")
+    CURL_EXIT_CODE=$?
     
-    if [ $? -ne 0 ]; then
-      echo "Error: Slack API呼び出しに失敗しました"
+    echo "Debug: curl終了コード: $CURL_EXIT_CODE"
+    echo "Debug: レスポンス長: ${#RESPONSE}"
+    
+    if [ $CURL_EXIT_CODE -ne 0 ]; then
+      echo "Error: Slack API呼び出しに失敗しました (curl終了コード: $CURL_EXIT_CODE)"
       exit 1
     fi
     
     # API呼び出し結果をそのまま出力（生データ）
-    echo "$RESPONSE" | jq '.'
+    echo "=== API Response ==="
+    echo "$RESPONSE" | jq '.' 2>/dev/null
     
     # jqが利用できない場合の代替
     if [ $? -ne 0 ]; then
-      echo "Raw Response:"
+      echo "Raw Response (jq not available):"
       echo "$RESPONSE"
     fi
     ;;
