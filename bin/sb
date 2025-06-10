@@ -1,6 +1,23 @@
 #!/bin/bash
 
 # SpikyBot 統合コマンド
+
+# Slack API共通関数
+slack_api_call() {
+  local method="$1"
+  local params="$2"
+  
+  if [ -z "$SLACK_BOT_TOKEN" ]; then
+    echo "Error: SLACK_BOT_TOKEN環境変数が設定されていません"
+    return 1
+  fi
+  
+  curl -s -X GET \
+    -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    "https://slack.com/api/${method}?${params}"
+}
+
 SUBCOMMAND="$1"
 shift
 
@@ -176,6 +193,28 @@ PROMPT
     git status 2>/dev/null || echo 'not in git repo'
     ;;
     
+  knowledge-list)
+    # Canvas一覧取得
+    echo "=== Slack Canvas一覧 ==="
+    
+    # Slack API経由でCanvas一覧を取得
+    RESPONSE=$(slack_api_call "files.list" "types=canvas&count=100")
+    
+    if [ $? -ne 0 ]; then
+      echo "Error: Slack API呼び出しに失敗しました"
+      exit 1
+    fi
+    
+    # API呼び出し結果をそのまま出力（生データ）
+    echo "$RESPONSE" | jq '.'
+    
+    # jqが利用できない場合の代替
+    if [ $? -ne 0 ]; then
+      echo "Raw Response:"
+      echo "$RESPONSE"
+    fi
+    ;;
+    
   help|--help|-h|"")
     echo "SpikyBot - GitHub Actions AI Assistant"
     echo ""
@@ -188,6 +227,7 @@ PROMPT
     echo "  git <git-command>              - Safe git operations"
     echo "  continue 'situation' 'command'  - Prepare continuation session"
     echo "  debug                          - Show debug information"
+    echo "  knowledge-list                 - List Slack Canvas knowledge base"
     echo ""
     echo "Examples:"
     echo "  sb comment '作業を開始しました'"
@@ -198,6 +238,7 @@ PROMPT
     echo "  sb git push"
     echo "  sb continue 'npm install中' 'npm install'"
     echo "  sb debug"
+    echo "  sb knowledge-list"
     ;;
     
   *)
