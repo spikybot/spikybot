@@ -224,6 +224,89 @@ PROMPT
     fi
     ;;
     
+  knowledge-view)
+    # Canvas内容表示
+    CANVAS_ID="$1"
+    
+    if [ -z "$CANVAS_ID" ]; then
+      echo "Usage: sb knowledge-view <canvas_id>"
+      echo "  canvas_id: Canvas file ID (e.g., F1234567890)"
+      exit 1
+    fi
+    
+    echo "=== Canvas内容表示: $CANVAS_ID ==="
+    
+    # Canvas情報を取得
+    RESPONSE=$(slack_api_call "files.info" "file=${CANVAS_ID}")
+    CURL_EXIT_CODE=$?
+    
+    if [ $CURL_EXIT_CODE -ne 0 ]; then
+      echo "Error: Canvas情報の取得に失敗しました"
+      exit 1
+    fi
+    
+    # レスポンス確認
+    OK_STATUS=$(echo "$RESPONSE" | jq -r '.ok' 2>/dev/null)
+    if [ "$OK_STATUS" != "true" ]; then
+      echo "Error: Canvas取得エラー"
+      echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
+      exit 1
+    fi
+    
+    # Canvas情報を表示
+    echo "$RESPONSE" | jq '{
+      id: .file.id,
+      name: .file.name,
+      title: .file.title,
+      created: .file.created,
+      user: .file.user,
+      permalink: .file.permalink
+    }' 2>/dev/null || echo "$RESPONSE"
+    ;;
+    
+  knowledge-append)
+    # Canvas内容追記
+    CANVAS_ID="$1"
+    CONTENT="$2"
+    
+    if [ -z "$CANVAS_ID" ] || [ -z "$CONTENT" ]; then
+      echo "Usage: sb knowledge-append <canvas_id> 'markdown_content'"
+      echo "  canvas_id: Canvas file ID (e.g., F1234567890)"
+      echo "  markdown_content: 追記するマークダウン内容"
+      exit 1
+    fi
+    
+    echo "=== Canvas内容追記: $CANVAS_ID ==="
+    
+    # 現在の時刻を取得
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # 追記内容を準備（改行を含むマークダウン）
+    APPEND_CONTENT="
+
+---
+## 📝 追記 ($TIMESTAMP)
+
+$CONTENT
+"
+    
+    # Canvas編集API呼び出し用のパラメータを準備
+    # URLエンコードが必要なためcurlで直接POST
+    curl -s -X POST \
+      -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      --data-urlencode "canvas_id=$CANVAS_ID" \
+      --data-urlencode "changes=[{\"operation\": \"document_append\", \"args\": {\"content\": \"$APPEND_CONTENT\"}}]" \
+      "https://slack.com/api/canvases.edit" | jq '.' 2>/dev/null
+    
+    if [ $? -eq 0 ]; then
+      echo "Canvas内容を追記しました"
+    else
+      echo "Error: Canvas追記に失敗しました"
+      exit 1
+    fi
+    ;;
+    
   help|--help|-h|"")
     echo "SpikyBot - GitHub Actions AI Assistant"
     echo ""
@@ -237,6 +320,8 @@ PROMPT
     echo "  continue 'situation' 'command'  - Prepare continuation session"
     echo "  debug                          - Show debug information"
     echo "  knowledge-list                 - List Slack Canvas knowledge base"
+    echo "  knowledge-view <id>            - View Canvas content"
+    echo "  knowledge-append <id> 'content' - Append to Canvas"
     echo ""
     echo "Examples:"
     echo "  sb comment '作業を開始しました'"
@@ -248,6 +333,8 @@ PROMPT
     echo "  sb continue 'npm install中' 'npm install'"
     echo "  sb debug"
     echo "  sb knowledge-list"
+    echo "  sb knowledge-view F1234567890"
+    echo "  sb knowledge-append F1234567890 '## Bug Fix\\n- Issue #123を修正'"
     ;;
     
   *)
