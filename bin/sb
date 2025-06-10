@@ -1,0 +1,208 @@
+#!/bin/bash
+
+# SpikyBot 統合コマンド
+SUBCOMMAND="$1"
+shift
+
+case "$SUBCOMMAND" in
+  comment)
+    # sb-commentの機能を統合
+    FINALIZE=false
+    MESSAGE=""
+    
+    while [[ $# -gt 0 ]]; do
+      case $1 in
+        --finalize)
+          FINALIZE=true
+          shift
+          ;;
+        *)
+          MESSAGE="$*"
+          break
+          ;;
+      esac
+    done
+    
+    if [ -z "$MESSAGE" ]; then
+      echo "Usage: sb comment [--finalize] 'message'"
+      exit 1
+    fi
+    
+    if [ "$FINALIZE" = true ]; then
+      FINAL_MESSAGE="@$GITHUB_ACTOR $MESSAGE"
+      gh issue comment "$SESSION_NUMBER" --body "$FINAL_MESSAGE"
+    else
+      if [ -n "$AGENT_INITIAL_COMMENT_ID" ]; then
+        CURRENT_BODY=$(gh api repos/$GITHUB_REPOSITORY/issues/comments/$AGENT_INITIAL_COMMENT_ID --jq '.body' 2>/dev/null || echo "")
+        CURRENT_TIME="[$(date '+%Y-%m-%d %H:%M:%S')]"
+        if [ -n "$CURRENT_BODY" ]; then
+          NEW_BODY="$CURRENT_BODY
+
+$CURRENT_TIME $MESSAGE"
+        else
+          NEW_BODY="$CURRENT_TIME $MESSAGE"
+        fi
+        gh issue comment "$SESSION_NUMBER" --edit "$AGENT_INITIAL_COMMENT_ID" --body "$NEW_BODY"
+      else
+        gh issue comment "$SESSION_NUMBER" --body "$MESSAGE"
+      fi
+    fi
+    ;;
+    
+  pr)
+    # sb-prの機能を統合
+    TITLE="$1"
+    BODY="$2"
+    
+    if [ -z "$TITLE" ] || [ -z "$BODY" ]; then
+      echo "Usage: sb pr 'title' 'body'"
+      exit 1
+    fi
+    
+    if [ "$EVENT_NAME" = "pull_request" ]; then
+      echo "PRセッション中のため、PR #$SESSION_NUMBER を更新します"
+      gh pr edit "$SESSION_NUMBER" --title "$TITLE" --body "$BODY"
+    else
+      EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --json number --jq '.[0].number' 2>/dev/null)
+      if [ -n "$EXISTING_PR" ]; then
+        echo "既存のPR #$EXISTING_PR を更新します"
+        gh pr edit "$EXISTING_PR" --title "$TITLE" --body "$BODY"
+      else
+        echo "新規PRを作成します"
+        PR_OUTPUT=$(gh pr create --title "$TITLE" --body "$BODY" --assignee "@me" 2>&1)
+        PR_NUMBER=$(echo "$PR_OUTPUT" | grep -o 'pull/[0-9]*' | sed 's/pull\///')
+        echo "$PR_OUTPUT"
+        if [ -n "$PR_NUMBER" ]; then
+          echo "LATEST_PR_NUMBER=$PR_NUMBER" >> "$GITHUB_ENV"
+        fi
+      fi
+    fi
+    ;;
+    
+  status)
+    # 統合状態確認
+    echo "=== SpikyBot Status ==="
+    echo "Session: $EVENT_NAME #$SESSION_NUMBER"
+    echo "Branch: $(git branch --show-current)"
+    echo "Latest PR: ${LATEST_PR_NUMBER:-none}"
+    echo ""
+    echo "=== Recent Comments ==="
+    gh issue view "$SESSION_NUMBER" --json comments --jq '.comments[-3:] | .[] | "[\(.author.login)] \(.body)" | .[0:100]' 2>/dev/null || echo "No comments"
+    echo ""
+    echo "=== Git Status ==="
+    git status --short
+    ;;
+    
+  git)
+    # Git操作のラッパー
+    GIT_CMD="$1"
+    shift
+    
+    case "$GIT_CMD" in
+      add)
+        if [ $# -eq 0 ]; then
+          echo "Error: ファイルを指定してください"
+          echo "Usage: sb git add <filename>"
+          exit 1
+        fi
+        for arg in "$@"; do
+          if [[ "$arg" == "." ]] || [[ "$arg" == "-A" ]] || [[ "$arg" == "--all" ]]; then
+            echo "Error: '$arg' は使用禁止です"
+            exit 1
+          fi
+        done
+        /usr/bin/git add "$@"
+        ;;
+        
+      push)
+        CURRENT_BRANCH=$(/usr/bin/git branch --show-current)
+        if [[ ! "$CURRENT_BRANCH" =~ ^spikybot/ ]]; then
+          echo "Error: spikybot/*ブランチのみpush可能です"
+          exit 1
+        fi
+        if [ $# -eq 0 ]; then
+          /usr/bin/git push origin "$CURRENT_BRANCH"
+        else
+          /usr/bin/git push "$@"
+        fi
+        ;;
+        
+      *)
+        # その他のgitコマンドは許可
+        /usr/bin/git "$GIT_CMD" "$@"
+        ;;
+    esac
+    ;;
+    
+  continue)
+    # 継続セッション準備（旧sb-continue）
+    SITUATION="$1"
+    shift
+    COMMAND="$*"
+    
+    if [ -z "$SITUATION" ] || [ -z "$COMMAND" ]; then
+      echo "Usage: sb continue 'situation' 'command'"
+      exit 1
+    fi
+    
+    # 継続スクリプト作成
+    cat > "$SB_DIR/continue.sh" << SCRIPT
+#!/bin/bash
+$COMMAND
+SCRIPT
+    chmod +x "$SB_DIR/continue.sh"
+    
+    # プロンプト継続ファイル作成
+    cat > "$SB_DIR/prompt-continue.txt" << PROMPT
+$SITUATION
+再開時に実行すべきコマンド: $COMMAND
+PROMPT
+    echo "継続セッションを準備しました"
+    ;;
+    
+  debug)
+    # デバッグ情報収集（旧sb-debug）
+    echo "=== デバッグ情報 ==="
+    echo "Node: $(node --version 2>/dev/null || echo 'not installed')"
+    echo "NPM: $(npm --version 2>/dev/null || echo 'not installed')"
+    echo "Git: $(git --version)"
+    echo "PWD: $(pwd)"
+    echo "Branch: $(git branch --show-current 2>/dev/null || echo 'not in git repo')"
+    echo "Session: $EVENT_NAME #$SESSION_NUMBER"
+    echo "Files:"
+    ls -la
+    echo ""
+    echo "Git Status:"
+    git status 2>/dev/null || echo 'not in git repo'
+    ;;
+    
+  help|--help|-h|"")
+    echo "SpikyBot - GitHub Actions AI Assistant"
+    echo ""
+    echo "Usage: sb <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  comment [--finalize] 'message'  - Post/update comment"
+    echo "  pr 'title' 'body'              - Create/update PR"
+    echo "  status                         - Show current status"
+    echo "  git <git-command>              - Safe git operations"
+    echo "  continue 'situation' 'command'  - Prepare continuation session"
+    echo "  debug                          - Show debug information"
+    echo ""
+    echo "Examples:"
+    echo "  sb comment '作業を開始しました'"
+    echo "  sb comment --finalize '作業完了'"
+    echo "  sb pr 'Fix bug' 'Fixed the issue'"
+    echo "  sb git add README.md"
+    echo "  sb git commit -m 'Update README'"
+    echo "  sb git push"
+    echo "  sb continue 'npm install中' 'npm install'"
+    echo "  sb debug"
+    ;;
+    
+  *)
+    echo "Unknown command: $SUBCOMMAND"
+    echo "Run 'sb help' for usage"
+    exit 1
+    ;;
+esac
