@@ -22,6 +22,14 @@ runs:
         echo "SESSION_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}" >> "$GITHUB_ENV"
         echo "EVENT_NAME=${{ github.event_name }}" >> "$GITHUB_ENV"
         echo "CURRENT_BRANCH=$(git branch --show-current)" >> "$GITHUB_ENV"
+        
+        # デバッグ: inputs.slack-bot-tokenの値を確認
+        echo "Debug: inputs.slack-bot-token value: '${{ inputs.slack-bot-token }}'"
+        echo "Debug: inputs.slack-bot-token length: ${#SLACK_INPUT}"
+        SLACK_INPUT="${{ inputs.slack-bot-token }}"
+        echo "Debug: SLACK_INPUT variable: '$SLACK_INPUT'"
+        echo "Debug: SLACK_INPUT first 10 chars: ${SLACK_INPUT:0:10}***"
+        
         echo "SLACK_BOT_TOKEN=${{ inputs.slack-bot-token }}" >> "$GITHUB_ENV"
         
         # パス設定
