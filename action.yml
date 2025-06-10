@@ -22,6 +22,7 @@ runs:
         echo "SESSION_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}" >> "$GITHUB_ENV"
         echo "EVENT_NAME=${{ github.event_name }}" >> "$GITHUB_ENV"
         echo "CURRENT_BRANCH=$(git branch --show-current)" >> "$GITHUB_ENV"
+        echo "SLACK_BOT_TOKEN=${{ inputs.slack-bot-token }}" >> "$GITHUB_ENV"
         
         # パス設定
         chmod +x .spikybot/bin/*
