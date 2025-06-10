@@ -278,6 +278,26 @@ PROMPT
     
     echo "=== Canvas内容追記: $CANVAS_ID ==="
     
+    # Canvas情報を取得して名前を確認
+    CANVAS_INFO=$(slack_api_call "files.info" "file=${CANVAS_ID}")
+    if [ $? -ne 0 ]; then
+      echo "Error: Canvas情報の取得に失敗しました"
+      exit 1
+    fi
+    
+    # Canvas名を取得
+    CANVAS_NAME=$(echo "$CANVAS_INFO" | jq -r '.file.name // .file.title // ""' 2>/dev/null)
+    
+    # SpikyBot/で始まるかチェック
+    if [[ ! "$CANVAS_NAME" =~ ^SpikyBot/ ]]; then
+      echo "Error: 'SpikyBot/'で始まるCanvas以外への追記は許可されていません"
+      echo "Canvas名: $CANVAS_NAME"
+      echo "許可されるCanvas名の例: SpikyBot/KnowledgeBase, SpikyBot/Debug-Notes"
+      exit 1
+    fi
+    
+    echo "Canvas名: $CANVAS_NAME"
+    
     # 現在の時刻を取得
     TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
     
