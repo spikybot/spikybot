@@ -310,16 +310,25 @@ PROMPT
       echo "Canvas内容を別の方法で取得中..."
       
       # canvases.sections.lookup APIを使用
+      # 全てのセクションタイプを取得
       SECTIONS_RESPONSE=$(curl -s -X POST \
         -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
         -H "Content-Type: application/json" \
-        -d "{\"canvas_id\": \"$CANVAS_ID\"}" \
+        -d "{\"canvas_id\": \"$CANVAS_ID\", \"criteria\": {\"section_types\": [\"h1\", \"h2\", \"h3\", \"p\", \"markdown\", \"text\", \"any_header\", \"rich_text\", \"bullet_list\", \"ordered_list\", \"quote\", \"code\", \"divider\"]}}" \
         "https://slack.com/api/canvases.sections.lookup")
       
       SECTIONS_OK=$(echo "$SECTIONS_RESPONSE" | jq -r '.ok' 2>/dev/null)
       if [ "$SECTIONS_OK" = "true" ]; then
-        echo "Canvas sections:"
-        echo "$SECTIONS_RESPONSE" | jq '.' 2>/dev/null
+        echo "Canvas sections found:"
+        # セクションの内容を整形して表示
+        echo "$SECTIONS_RESPONSE" | jq -r '.sections[]? | "Section ID: \(.id)\nType: \(.type)\nContent: \(.content // "N/A")\n---"' 2>/dev/null
+        
+        # セクションが見つからない場合は全レスポンスを表示
+        SECTION_COUNT=$(echo "$SECTIONS_RESPONSE" | jq '.sections | length' 2>/dev/null || echo "0")
+        if [ "$SECTION_COUNT" = "0" ]; then
+          echo "No sections found. Full response:"
+          echo "$SECTIONS_RESPONSE" | jq '.' 2>/dev/null
+        fi
       else
         # デバッグ情報
         echo "Debug: 利用可能なフィールド:"
