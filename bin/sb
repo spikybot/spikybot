@@ -201,8 +201,8 @@ PROMPT
     echo "Debug: SLACK_BOT_TOKEN設定状況: ${SLACK_BOT_TOKEN:+設定済み}${SLACK_BOT_TOKEN:-未設定}"
     echo "Debug: トークン先頭4文字: ${SLACK_BOT_TOKEN:0:4}***"
     
-    # Slack API経由でCanvas一覧を取得
-    RESPONSE=$(slack_api_call "files.list" "types=canvas&count=100")
+    # Slack API経由でCanvas一覧を取得（より多くの結果を取得）
+    RESPONSE=$(slack_api_call "files.list" "types=canvas&count=200&show_files_hidden_by_limit=true")
     CURL_EXIT_CODE=$?
     
     echo "Debug: curl終了コード: $CURL_EXIT_CODE"
@@ -213,15 +213,21 @@ PROMPT
       exit 1
     fi
     
-    # API呼び出し結果をそのまま出力（生データ）
-    echo "=== API Response ==="
-    echo "$RESPONSE" | jq '.' 2>/dev/null
-    
-    # jqが利用できない場合の代替
-    if [ $? -ne 0 ]; then
-      echo "Raw Response (jq not available):"
-      echo "$RESPONSE"
+    # APIレスポンスを解析
+    OK_STATUS=$(echo "$RESPONSE" | jq -r '.ok' 2>/dev/null)
+    if [ "$OK_STATUS" != "true" ]; then
+      echo "Error: Canvas一覧の取得に失敗しました"
+      echo "$RESPONSE" | jq '.' 2>/dev/null || echo "$RESPONSE"
+      exit 1
     fi
+    
+    # Canvas一覧を整形して表示
+    echo "=== Canvas一覧 ==="
+    echo "$RESPONSE" | jq -r '.files[] | "- ID: \(.id)\n  名前: \(.name // .title // "無題")\n  作成日: \(.created)\n  URL: \(.permalink)\n"' 2>/dev/null
+    
+    # 総数を表示
+    TOTAL_COUNT=$(echo "$RESPONSE" | jq '.files | length' 2>/dev/null || echo "0")
+    echo "合計: ${TOTAL_COUNT}個のCanvas"
     ;;
     
   knowledge-view)
