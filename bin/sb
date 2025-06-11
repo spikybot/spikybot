@@ -288,33 +288,11 @@ PROMPT
     # Canvas名を取得 (name, title, または filename フィールドから)
     CANVAS_NAME=$(echo "$CANVAS_INFO" | jq -r '.file.name // .file.title // .file.filename // ""' 2>/dev/null)
     
-    # デバッグ情報（詳細版）
-    echo "Debug: Full API response:"
-    echo "$CANVAS_INFO" | jq '.' 2>/dev/null || echo "Debug: jq parse error for full response"
-    echo "Debug: File object:"
-    echo "$CANVAS_INFO" | jq '.file' 2>/dev/null || echo "Debug: no .file object"
-    echo "Debug: All name-related fields:"
-    echo "$CANVAS_INFO" | jq '.file | {name, title, filename, pretty_type}' 2>/dev/null || echo "Debug: jq parse error"
-    echo "Debug: Extracted Canvas name: '$CANVAS_NAME'"
-    echo "Debug: Canvas name length: ${#CANVAS_NAME}"
-    echo "Debug: Canvas name hex dump:"
-    echo -n "$CANVAS_NAME" | xxd
-    
-    # SpikyBot/で始まるかチェック
-    if [[ ! "$CANVAS_NAME" =~ ^SpikyBot/ ]]; then
-      echo "Error: 'SpikyBot/'で始まるCanvas以外への追記は許可されていません"
+    # SpikyBot/またはSpikyBot_で始まるかチェック
+    if [[ ! "$CANVAS_NAME" =~ ^SpikyBot[/_] ]]; then
+      echo "Error: 'SpikyBot/'または'SpikyBot_'で始まるCanvas以外への追記は許可されていません"
       echo "Canvas名: $CANVAS_NAME"
-      echo "許可されるCanvas名の例: SpikyBot/KnowledgeBase, SpikyBot/Debug-Notes"
-      
-      # 追加デバッグ: 正規表現テスト
-      echo "Debug: Testing regex patterns..."
-      if [[ "$CANVAS_NAME" =~ ^[[:space:]]*SpikyBot/ ]]; then
-        echo "Debug: Name starts with whitespace before SpikyBot/"
-      fi
-      if [[ "$CANVAS_NAME" =~ SpikyBot/ ]]; then
-        echo "Debug: Name contains SpikyBot/ somewhere"
-      fi
-      
+      echo "許可されるCanvas名の例: SpikyBot/KnowledgeBase, SpikyBot_Debug_Notes"
       exit 1
     fi
     
@@ -377,6 +355,8 @@ $CONTENT
     echo "  sb knowledge-list"
     echo "  sb knowledge-view F1234567890"
     echo "  sb knowledge-append F1234567890 '## Bug Fix\\n- Issue #123を修正'"
+    echo ""
+    echo "Note: knowledge-appendは'SpikyBot/'または'SpikyBot_'で始まるCanvas名のみ許可"
     ;;
     
   *)
