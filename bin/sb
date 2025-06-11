@@ -296,20 +296,43 @@ PROMPT
       permalink: .file.permalink
     }' 2>/dev/null || echo "$RESPONSE"
     
-    # Gitリポジトリから保存された知識を読み取る
+    # Canvas内容を取得（document_contentフィールドを確認）
     echo ""
-    echo "=== 保存された知識 ==="
-    KNOWLEDGE_KEY="canvas_${CANVAS_ID}"
-    KNOWLEDGE_FILE=".spikybot/knowledge/knowledge.json"
+    echo "=== Canvas内容 ==="
     
-    if [ -f "$KNOWLEDGE_FILE" ]; then
-      # 該当するCanvas IDに関連する全ての知識を表示
-      echo "Canvas $CANVAS_ID に関連する知識:"
-      jq -r --arg prefix "$KNOWLEDGE_KEY" 'to_entries[] | select(.key | startswith($prefix)) | "- \(.key): \(.value.value)\n  保存日時: \(.value.timestamp)"' "$KNOWLEDGE_FILE" 2>/dev/null || echo "保存された知識はありません"
+    # document_contentフィールドを確認
+    DOCUMENT_CONTENT=$(echo "$RESPONSE" | jq -r '.file.document_content // empty' 2>/dev/null)
+    
+    if [ -n "$DOCUMENT_CONTENT" ]; then
+      # document_contentが存在する場合
+      CONTENT_TYPE=$(echo "$DOCUMENT_CONTENT" | jq -r '.type // empty' 2>/dev/null)
+      if [ "$CONTENT_TYPE" = "markdown" ]; then
+        # Markdown内容を表示
+        echo "Canvas内容（Markdown形式）:"
+        echo "$DOCUMENT_CONTENT" | jq -r '.markdown // empty' 2>/dev/null
+      else
+        echo "Canvas内容（形式: $CONTENT_TYPE）:"
+        echo "$DOCUMENT_CONTENT" | jq '.' 2>/dev/null
+      fi
     else
-      echo "知識ベースファイルが存在しません"
-      echo "注意: Slack Canvas APIの制限により、Canvas内容の直接読み取りはサポートされていません。"
-      echo "sb knowledge-appendで保存した内容は、Gitリポジトリに記録されます。"
+      # document_contentが存在しない場合は他のフィールドも確認
+      echo "document_contentフィールドが存在しません。"
+      echo ""
+      echo "利用可能なファイルフィールド:"
+      echo "$RESPONSE" | jq '.file | keys' 2>/dev/null | head -20
+      
+      # Gitリポジトリから保存された知識を読み取る
+      echo ""
+      echo "=== 保存された知識（代替手段） ==="
+      KNOWLEDGE_KEY="canvas_${CANVAS_ID}"
+      KNOWLEDGE_FILE=".spikybot/knowledge/knowledge.json"
+      
+      if [ -f "$KNOWLEDGE_FILE" ]; then
+        echo "Canvas $CANVAS_ID に関連する知識:"
+        jq -r --arg prefix "$KNOWLEDGE_KEY" 'to_entries[] | select(.key | startswith($prefix)) | "- \(.key): \(.value.value)\n  保存日時: \(.value.timestamp)"' "$KNOWLEDGE_FILE" 2>/dev/null || echo "保存された知識はありません"
+      else
+        echo "Gitベースの知識も存在しません"
+      fi
     fi
     ;;
     
