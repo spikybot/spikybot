@@ -195,14 +195,26 @@ PROMPT
     
   knowledge-list)
     # Canvas一覧取得
-    echo "=== Slack Canvas一覧 ==="
+    SEARCH_QUERY="$1"
+    
+    if [ -n "$SEARCH_QUERY" ]; then
+      echo "=== Slack Canvas検索: '$SEARCH_QUERY' ==="
+    else
+      echo "=== Slack Canvas一覧 ==="
+    fi
     
     # デバッグ情報
     echo "Debug: SLACK_BOT_TOKEN設定状況: ${SLACK_BOT_TOKEN:+設定済み}${SLACK_BOT_TOKEN:-未設定}"
     echo "Debug: トークン先頭4文字: ${SLACK_BOT_TOKEN:0:4}***"
     
-    # Slack API経由でCanvas一覧を取得（より多くの結果を取得）
-    RESPONSE=$(slack_api_call "files.list" "types=canvas&count=200&show_files_hidden_by_limit=true")
+    # Slack API経由でCanvas一覧を取得（検索クエリがある場合は検索）
+    if [ -n "$SEARCH_QUERY" ]; then
+      # 検索APIを使用
+      RESPONSE=$(slack_api_call "files.list" "types=canvas&count=200&query=${SEARCH_QUERY}")
+    else
+      # 通常のリスト取得
+      RESPONSE=$(slack_api_call "files.list" "types=canvas&count=200&show_files_hidden_by_limit=true")
+    fi
     CURL_EXIT_CODE=$?
     
     echo "Debug: curl終了コード: $CURL_EXIT_CODE"
@@ -225,9 +237,23 @@ PROMPT
     echo "=== Canvas一覧 ==="
     echo "$RESPONSE" | jq -r '.files[] | "- ID: \(.id)\n  名前: \(.name // .title // "無題")\n  作成日: \(.created)\n  URL: \(.permalink)\n"' 2>/dev/null
     
-    # 総数を表示
+    # 総数とページング情報を表示
     TOTAL_COUNT=$(echo "$RESPONSE" | jq '.files | length' 2>/dev/null || echo "0")
     echo "合計: ${TOTAL_COUNT}個のCanvas"
+    
+    # ページング情報があれば表示
+    HAS_MORE=$(echo "$RESPONSE" | jq -r '.has_more // false' 2>/dev/null)
+    if [ "$HAS_MORE" = "true" ]; then
+      echo "注意: さらに多くのCanvasが存在する可能性があります"
+    fi
+    
+    # デバッグ: 権限情報
+    echo ""
+    echo "=== デバッグ情報 ==="
+    echo "使用しているトークンのスコープで表示可能なCanvasのみが表示されています"
+    echo "もし期待するCanvasが表示されない場合:"
+    echo "1. Canvasが存在するチャンネルにBotが追加されているか確認"
+    echo "2. Canvas名が正しいか確認（大文字小文字、スペース等）"
     ;;
     
   knowledge-view)
@@ -345,7 +371,7 @@ $CONTENT
     echo "  git <git-command>              - Safe git operations"
     echo "  continue 'situation' 'command'  - Prepare continuation session"
     echo "  debug                          - Show debug information"
-    echo "  knowledge-list                 - List Slack Canvas knowledge base"
+    echo "  knowledge-list [search]        - List/search Slack Canvas knowledge base"
     echo "  knowledge-view <id>            - View Canvas content"
     echo "  knowledge-append <id> 'content' - Append to Canvas"
     echo ""
@@ -359,6 +385,7 @@ $CONTENT
     echo "  sb continue 'npm install中' 'npm install'"
     echo "  sb debug"
     echo "  sb knowledge-list"
+    echo "  sb knowledge-list 'SpikyBot/all'"
     echo "  sb knowledge-view F1234567890"
     echo "  sb knowledge-append F1234567890 '## Bug Fix\\n- Issue #123を修正'"
     echo ""
