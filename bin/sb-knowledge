@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# SpikyBot Knowledge Persistence Helper
+# 知識をGitリポジトリ内の.spikybot/knowledgeディレクトリに保存
+
+KNOWLEDGE_DIR=".spikybot/knowledge"
+
+case "$1" in
+  init)
+    # 知識ディレクトリの初期化
+    mkdir -p "$KNOWLEDGE_DIR"
+    echo "# SpikyBot Knowledge Base" > "$KNOWLEDGE_DIR/README.md"
+    echo "知識ベースディレクトリを初期化しました: $KNOWLEDGE_DIR"
+    ;;
+    
+  save)
+    # 知識の保存
+    KEY="$2"
+    VALUE="$3"
+    
+    if [ -z "$KEY" ] || [ -z "$VALUE" ]; then
+      echo "Usage: sb-knowledge save <key> <value>"
+      exit 1
+    fi
+    
+    mkdir -p "$KNOWLEDGE_DIR"
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # JSONファイルに保存
+    KNOWLEDGE_FILE="$KNOWLEDGE_DIR/knowledge.json"
+    
+    # 既存のJSONを読み込むか、新規作成
+    if [ -f "$KNOWLEDGE_FILE" ]; then
+      # 既存のJSONに追加
+      jq --arg key "$KEY" --arg value "$VALUE" --arg ts "$TIMESTAMP" \
+        '.[$key] = {value: $value, timestamp: $ts}' "$KNOWLEDGE_FILE" > "$KNOWLEDGE_FILE.tmp" && \
+        mv "$KNOWLEDGE_FILE.tmp" "$KNOWLEDGE_FILE"
+    else
+      # 新規JSON作成
+      jq -n --arg key "$KEY" --arg value "$VALUE" --arg ts "$TIMESTAMP" \
+        '{($key): {value: $value, timestamp: $ts}}' > "$KNOWLEDGE_FILE"
+    fi
+    
+    echo "知識を保存しました: $KEY"
+    ;;
+    
+  get)
+    # 知識の取得
+    KEY="$2"
+    
+    if [ -z "$KEY" ]; then
+      echo "Usage: sb-knowledge get <key>"
+      exit 1
+    fi
+    
+    KNOWLEDGE_FILE="$KNOWLEDGE_DIR/knowledge.json"
+    
+    if [ -f "$KNOWLEDGE_FILE" ]; then
+      VALUE=$(jq -r --arg key "$KEY" '.[$key].value // empty' "$KNOWLEDGE_FILE")
+      if [ -n "$VALUE" ]; then
+        echo "$VALUE"
+      else
+        echo "知識が見つかりません: $KEY"
+        exit 1
+      fi
+    else
+      echo "知識ベースが存在しません"
+      exit 1
+    fi
+    ;;
+    
+  list)
+    # 知識の一覧
+    KNOWLEDGE_FILE="$KNOWLEDGE_DIR/knowledge.json"
+    
+    if [ -f "$KNOWLEDGE_FILE" ]; then
+      echo "=== 保存されている知識 ==="
+      jq -r 'to_entries[] | "- \(.key): \(.value.value) (保存日時: \(.value.timestamp))"' "$KNOWLEDGE_FILE"
+    else
+      echo "知識ベースが存在しません"
+    fi
+    ;;
+    
+  *)
+    echo "Usage: sb-knowledge {init|save|get|list}"
+    echo "  init         - 知識ベースディレクトリを初期化"
+    echo "  save <k> <v> - 知識を保存"
+    echo "  get <key>    - 知識を取得"
+    echo "  list         - 知識の一覧を表示"
+    exit 1
+    ;;
+esac

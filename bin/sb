@@ -296,18 +296,20 @@ PROMPT
       permalink: .file.permalink
     }' 2>/dev/null || echo "$RESPONSE"
     
-    # ローカルキャッシュから内容を読み取る
+    # Gitリポジトリから保存された知識を読み取る
     echo ""
-    echo "=== Canvas内容（ローカルキャッシュ） ==="
-    CACHE_FILE="$SB_DIR/canvas_cache/${CANVAS_ID}.md"
-    if [ -f "$CACHE_FILE" ]; then
-      cat "$CACHE_FILE"
+    echo "=== 保存された知識 ==="
+    KNOWLEDGE_KEY="canvas_${CANVAS_ID}"
+    KNOWLEDGE_FILE=".spikybot/knowledge/knowledge.json"
+    
+    if [ -f "$KNOWLEDGE_FILE" ]; then
+      # 該当するCanvas IDに関連する全ての知識を表示
+      echo "Canvas $CANVAS_ID に関連する知識:"
+      jq -r --arg prefix "$KNOWLEDGE_KEY" 'to_entries[] | select(.key | startswith($prefix)) | "- \(.key): \(.value.value)\n  保存日時: \(.value.timestamp)"' "$KNOWLEDGE_FILE" 2>/dev/null || echo "保存された知識はありません"
     else
-      echo "注意: Canvas内容のローカルキャッシュがありません。"
-      echo "Canvas内容は、追記時にローカルに保存されます。"
-      echo ""
-      echo "Slack Canvas APIの制限により、Canvas内容の直接読み取りはサポートされていません。"
-      echo "代替手段として、sb knowledge-appendで追記した内容はローカルキャッシュに保存されます。"
+      echo "知識ベースファイルが存在しません"
+      echo "注意: Slack Canvas APIの制限により、Canvas内容の直接読み取りはサポートされていません。"
+      echo "sb knowledge-appendで保存した内容は、Gitリポジトリに記録されます。"
     fi
     ;;
     
@@ -371,18 +373,107 @@ $CONTENT
     if [ "$API_OK" = "true" ]; then
       echo "Canvas内容を追記しました"
       
-      # ローカルキャッシュに保存
-      CACHE_DIR="$SB_DIR/canvas_cache"
-      mkdir -p "$CACHE_DIR"
-      CACHE_FILE="$CACHE_DIR/${CANVAS_ID}.md"
+      # Gitリポジトリの知識ベースに保存
+      KNOWLEDGE_DIR=".spikybot/knowledge"
+      mkdir -p "$KNOWLEDGE_DIR"
+      KNOWLEDGE_FILE="$KNOWLEDGE_DIR/knowledge.json"
+      KNOWLEDGE_KEY="canvas_${CANVAS_ID}_$(date +%s)"
       
-      # 既存のキャッシュに追記
-      echo "$APPEND_CONTENT" >> "$CACHE_FILE"
-      echo "ローカルキャッシュを更新しました: $CACHE_FILE"
+      # 既存のJSONを読み込むか、新規作成
+      if [ -f "$KNOWLEDGE_FILE" ]; then
+        # 既存のJSONに追加
+        jq --arg key "$KNOWLEDGE_KEY" --arg value "$CONTENT" --arg ts "$TIMESTAMP" \
+          '.[$key] = {value: $value, timestamp: $ts}' "$KNOWLEDGE_FILE" > "$KNOWLEDGE_FILE.tmp" && \
+          mv "$KNOWLEDGE_FILE.tmp" "$KNOWLEDGE_FILE"
+      else
+        # 新規JSON作成
+        jq -n --arg key "$KNOWLEDGE_KEY" --arg value "$CONTENT" --arg ts "$TIMESTAMP" \
+          '{($key): {value: $value, timestamp: $ts}}' > "$KNOWLEDGE_FILE"
+      fi
+      
+      echo "知識をGitリポジトリに保存しました: $KNOWLEDGE_KEY"
+      
+      # 自動的にコミット
+      git add "$KNOWLEDGE_FILE" 2>/dev/null && \
+        git commit -m "Knowledge: Canvas追記 - $TIMESTAMP" 2>/dev/null && \
+        echo "知識ベースの変更をコミットしました"
     else
       echo "Error: Canvas追記に失敗しました"
       echo "$API_RESPONSE" | jq '.' 2>/dev/null
       exit 1
+    fi
+    ;;
+    
+  memory-save)
+    # 簡易知識保存
+    KEY="$1"
+    VALUE="$2"
+    
+    if [ -z "$KEY" ] || [ -z "$VALUE" ]; then
+      echo "Usage: sb memory-save <key> <value>"
+      exit 1
+    fi
+    
+    KNOWLEDGE_DIR=".spikybot/knowledge"
+    mkdir -p "$KNOWLEDGE_DIR"
+    KNOWLEDGE_FILE="$KNOWLEDGE_DIR/knowledge.json"
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # 既存のJSONを読み込むか、新規作成
+    if [ -f "$KNOWLEDGE_FILE" ]; then
+      jq --arg key "$KEY" --arg value "$VALUE" --arg ts "$TIMESTAMP" \
+        '.[$key] = {value: $value, timestamp: $ts}' "$KNOWLEDGE_FILE" > "$KNOWLEDGE_FILE.tmp" && \
+        mv "$KNOWLEDGE_FILE.tmp" "$KNOWLEDGE_FILE"
+    else
+      jq -n --arg key "$KEY" --arg value "$VALUE" --arg ts "$TIMESTAMP" \
+        '{($key): {value: $value, timestamp: $ts}}' > "$KNOWLEDGE_FILE"
+    fi
+    
+    echo "知識を保存しました: $KEY = $VALUE"
+    
+    # 自動的にコミット
+    git add "$KNOWLEDGE_FILE" 2>/dev/null && \
+      git commit -m "Memory: $KEY を保存 - $TIMESTAMP" 2>/dev/null && \
+      echo "知識ベースの変更をコミットしました"
+    ;;
+    
+  memory-get)
+    # 簡易知識取得
+    KEY="$1"
+    
+    if [ -z "$KEY" ]; then
+      echo "Usage: sb memory-get <key>"
+      exit 1
+    fi
+    
+    KNOWLEDGE_FILE=".spikybot/knowledge/knowledge.json"
+    
+    if [ -f "$KNOWLEDGE_FILE" ]; then
+      VALUE=$(jq -r --arg key "$KEY" '.[$key].value // empty' "$KNOWLEDGE_FILE")
+      TIMESTAMP=$(jq -r --arg key "$KEY" '.[$key].timestamp // empty' "$KNOWLEDGE_FILE")
+      if [ -n "$VALUE" ]; then
+        echo "キー: $KEY"
+        echo "値: $VALUE"
+        echo "保存日時: $TIMESTAMP"
+      else
+        echo "知識が見つかりません: $KEY"
+        exit 1
+      fi
+    else
+      echo "知識ベースファイルが存在しません"
+      exit 1
+    fi
+    ;;
+    
+  memory-list)
+    # 知識一覧
+    KNOWLEDGE_FILE=".spikybot/knowledge/knowledge.json"
+    
+    if [ -f "$KNOWLEDGE_FILE" ]; then
+      echo "=== 保存されている知識 ==="
+      jq -r 'to_entries[] | "- \(.key): \(.value.value) (保存日時: \(.value.timestamp))"' "$KNOWLEDGE_FILE"
+    else
+      echo "知識ベースファイルが存在しません"
     fi
     ;;
     
@@ -401,6 +492,9 @@ $CONTENT
     echo "  knowledge-list [search]        - List/search Slack Canvas knowledge base"
     echo "  knowledge-view <id>            - View Canvas content"
     echo "  knowledge-append <id> 'content' - Append to Canvas"
+    echo "  memory-save <key> <value>      - Save knowledge to Git repository"
+    echo "  memory-get <key>               - Get saved knowledge"
+    echo "  memory-list                    - List all saved knowledge"
     echo ""
     echo "Examples:"
     echo "  sb comment '作業を開始しました'"
@@ -415,8 +509,12 @@ $CONTENT
     echo "  sb knowledge-list 'SpikyBot/all'"
     echo "  sb knowledge-view F1234567890"
     echo "  sb knowledge-append F1234567890 '## Bug Fix\\n- Issue #123を修正'"
+    echo "  sb memory-save password '桜の花びらが舞う春の朝'"
+    echo "  sb memory-get password"
+    echo "  sb memory-list"
     echo ""
     echo "Note: knowledge-appendは'SpikyBot/'または'SpikyBot_'で始まるCanvas名のみ許可"
+    echo "Note: memory-*コマンドはGitリポジトリに知識を保存します"
     ;;
     
   *)
