@@ -268,8 +268,9 @@ PROMPT
     
     echo "=== Canvas内容表示: $CANVAS_ID ==="
     
-    # Canvas情報を取得
-    RESPONSE=$(slack_api_call "files.info" "file=${CANVAS_ID}")
+    # Canvas情報を取得（追加パラメータ付き）
+    # include_canvas_content=true や他のパラメータを試す
+    RESPONSE=$(slack_api_call "files.info" "file=${CANVAS_ID}&include_canvas_content=true&expand_preview=true")
     CURL_EXIT_CODE=$?
     
     if [ $CURL_EXIT_CODE -ne 0 ]; then
@@ -286,6 +287,7 @@ PROMPT
     fi
     
     # Canvas情報を表示
+    echo "=== Canvas情報 ==="
     echo "$RESPONSE" | jq '{
       id: .file.id,
       name: .file.name,
@@ -294,6 +296,40 @@ PROMPT
       user: .file.user,
       permalink: .file.permalink
     }' 2>/dev/null || echo "$RESPONSE"
+    
+    # Canvas内容を取得する別の方法を試す
+    echo ""
+    echo "=== Canvas内容 ==="
+    
+    # files.infoのレスポンスに内容が含まれているか確認
+    CONTENT=$(echo "$RESPONSE" | jq -r '.file.content // .file.markdown // .file.plain_text // .file.preview // .file.canvas_content // empty' 2>/dev/null)
+    if [ -n "$CONTENT" ]; then
+      echo "$CONTENT"
+    else
+      # canvases.sections.lookupを試す
+      echo "Canvas内容を別の方法で取得中..."
+      
+      # canvases.sections.lookup APIを使用
+      SECTIONS_RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"canvas_id\": \"$CANVAS_ID\"}" \
+        "https://slack.com/api/canvases.sections.lookup")
+      
+      SECTIONS_OK=$(echo "$SECTIONS_RESPONSE" | jq -r '.ok' 2>/dev/null)
+      if [ "$SECTIONS_OK" = "true" ]; then
+        echo "Canvas sections:"
+        echo "$SECTIONS_RESPONSE" | jq '.' 2>/dev/null
+      else
+        # デバッグ情報
+        echo "Debug: 利用可能なフィールド:"
+        echo "$RESPONSE" | jq '.file | keys' 2>/dev/null
+        
+        echo ""
+        echo "Debug: files.info完全レスポンス:"
+        echo "$RESPONSE" | jq '.file' 2>/dev/null
+      fi
+    fi
     ;;
     
   knowledge-append)
