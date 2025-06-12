@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# SpikyBot GitHub CLI フィルタリングコマンド
+
+GH_CMD="$1"
+shift
+
+case "$GH_CMD" in
+  pr)
+    PR_SUBCOMMAND="$1"
+    case "$PR_SUBCOMMAND" in
+      create)
+        # PR作成のフィルタリング
+        CURRENT_BRANCH=$(/usr/bin/git branch --show-current)
+        if [[ ! "$CURRENT_BRANCH" =~ ^spikybot/ ]]; then
+          echo "Error: PR作成はspikybot/*ブランチのみ可能です"
+          echo "現在のブランチ: $CURRENT_BRANCH"
+          exit 1
+        fi
+        
+        # 既にPRセッション中の場合は作成禁止
+        if [ "$EVENT_NAME" = "pull_request" ]; then
+          echo "Error: PRセッション中は新規PR作成禁止です"
+          echo "現在のPR: #$SESSION_NUMBER"
+          exit 1
+        fi
+        
+        # 既存PRが存在する場合は作成禁止
+        EXISTING_PR=$(gh pr list --head "$CURRENT_BRANCH" --json number --jq '.[0].number' 2>/dev/null)
+        if [ -n "$EXISTING_PR" ]; then
+          echo "Error: ブランチ '$CURRENT_BRANCH' には既存のPR #$EXISTING_PR が存在します"
+          echo "既存PRを更新する場合: gh pr edit $EXISTING_PR"
+          exit 1
+        fi
+        ;;
+        
+      edit)
+        # PR編集のフィルタリング
+        CURRENT_BRANCH=$(/usr/bin/git branch --show-current)
+        if [[ ! "$CURRENT_BRANCH" =~ ^spikybot/ ]]; then
+          echo "Error: PR編集はspikybot/*ブランチのみ可能です"
+          echo "現在のブランチ: $CURRENT_BRANCH"
+          exit 1
+        fi
+        ;;
+    esac
+    ;;
+esac
+
+# フィルタリングを通過したコマンドをghに中継
+gh "$GH_CMD" "$@"

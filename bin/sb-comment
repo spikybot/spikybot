@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# SpikyBot Comment操作コマンド
+
+# デフォルトでfinalizeフラグをfalseに設定
+FINALIZE=false
+MESSAGE=""
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --finalize)
+      FINALIZE=true
+      shift
+      ;;
+    *)
+      MESSAGE="$*"
+      break
+      ;;
+  esac
+done
+
+if [ -z "$MESSAGE" ]; then
+  echo "Usage: sb-comment [--finalize] 'message'"
+  echo ""
+  echo "Options:"
+  echo "  --finalize                     - Create final comment with @mention"
+  echo ""
+  echo "Examples:"
+  echo "  sb-comment '作業を開始しました'"
+  echo "  sb-comment --finalize '作業完了'"
+  exit 1
+fi
+
+if [ "$FINALIZE" = true ]; then
+  FINAL_MESSAGE="@$GITHUB_ACTOR $MESSAGE"
+  gh issue comment "$SESSION_NUMBER" --body "$FINAL_MESSAGE"
+else
+  if [ -n "$AGENT_INITIAL_COMMENT_ID" ]; then
+    CURRENT_BODY=$(gh api repos/$GITHUB_REPOSITORY/issues/comments/$AGENT_INITIAL_COMMENT_ID --jq '.body' 2>/dev/null || echo "")
+    CURRENT_TIME="[$(date '+%Y-%m-%d %H:%M:%S')]"
+    if [ -n "$CURRENT_BODY" ]; then
+      NEW_BODY="$CURRENT_BODY
+
+$CURRENT_TIME $MESSAGE"
+    else
+      NEW_BODY="$CURRENT_TIME $MESSAGE"
+    fi
+    gh issue comment "$SESSION_NUMBER" --edit "$AGENT_INITIAL_COMMENT_ID" --body "$NEW_BODY"
+  else
+    gh issue comment "$SESSION_NUMBER" --body "$MESSAGE"
+  fi
+fi
