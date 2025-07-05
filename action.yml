@@ -27,11 +27,16 @@ runs:
           echo "AGENT_INITIAL_COMMENT_ID=$AGENT_INITIAL_COMMENT_ID" >> "$GITHUB_ENV"
         fi
         
-    - name: Composing Prompt
+    - name: Execute AI Agent
       shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
       run: |
         # プロンプトファイルを作成
-        cat > "spikybot-prompt.txt" << EOF
+        PROMPT_FILE=$(mktemp)
+        trap "rm -f $PROMPT_FILE" EXIT
+        
+        cat > "$PROMPT_FILE" << EOF
         # Session Context
         current_branch = ${{ github.ref_name }}
         event_name = ${{ github.event_name }}
@@ -51,7 +56,7 @@ runs:
              * 中断された過去の作業内容は破棄されているため、ファイル変更が必要な場合は再度実行
              * 過去のコメントで言及されたファイルがある場合はそのファイルを確認
            - バックグラウンドコマンドの長時間実行による継続セッションの場合の処理:
-             * prompt-continue.txtが存在する場合は継続セッション
+             * 継続プロンプトファイルが存在する場合は継続セッション
              * 既に初回応答は完了済みのため直接タスク実行に進む
              * 継続指示に従ってタスクを再開
         3. 初回応答について
@@ -137,13 +142,9 @@ runs:
         # ユーザーコメント
         ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
         EOF
-    - name: Execute AI Agent Loop
-      shell: bash -l -e {0}
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
-      run: |
+        
         # Execute Claude command with restrictions
-        cat "spikybot-prompt.txt" | claude \
+        cat "$PROMPT_FILE" | claude \
           --print \
           --output-format stream-json \
           --verbose \
@@ -151,14 +152,18 @@ runs:
           --disallowedTools "Bash(git) Bash(gh)"
         
         # 長時間コマンドのタイムアウト対策
-        while [ -f "continue.sh" ]; do
-          cat "continue.sh"
-          bash -l -e "continue.sh"
-          rm "continue.sh"
-          echo "# このセッションはバックグラウンドのコマンド実行が完了した後の継続セッション" >> "spikybot-prompt.txt"
-          cat "prompt-continue.txt" >> "spikybot-prompt.txt"
-          rm "prompt-continue.txt"
-          cat "spikybot-prompt.txt" | claude \
+        CONTINUE_FILE=$(mktemp)
+        CONTINUE_PROMPT=$(mktemp)
+        trap "rm -f $CONTINUE_FILE $CONTINUE_PROMPT" EXIT
+        
+        while [ -f "$CONTINUE_FILE" ]; do
+          cat "$CONTINUE_FILE"
+          bash -l -e "$CONTINUE_FILE"
+          rm "$CONTINUE_FILE"
+          echo "# このセッションはバックグラウンドのコマンド実行が完了した後の継続セッション" >> "$PROMPT_FILE"
+          cat "$CONTINUE_PROMPT" >> "$PROMPT_FILE"
+          rm "$CONTINUE_PROMPT"
+          cat "$PROMPT_FILE" | claude \
             --print \
             --output-format stream-json \
             --verbose \
