@@ -143,32 +143,18 @@ runs:
         ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
         EOF
         
-        # Execute Claude command with restrictions
-        cat "$PROMPT_FILE" | claude \
-          --print \
-          --output-format stream-json \
-          --verbose \
-          --model sonnet \
-          --disallowedTools "Bash(git) Bash(gh)"
+        # Execute Claude command
+        cat "$PROMPT_FILE" | claude --print --output-format stream-json --verbose --dangerously-skip-permissions
         
         # 長時間コマンドのタイムアウト対策
         CONTINUE_FILE=$(mktemp)
-        CONTINUE_PROMPT=$(mktemp)
-        trap "rm -f $CONTINUE_FILE $CONTINUE_PROMPT" EXIT
+        trap "rm -f $CONTINUE_FILE" EXIT
         
         while [ -f "$CONTINUE_FILE" ]; do
           cat "$CONTINUE_FILE"
           bash -l -e "$CONTINUE_FILE"
           rm "$CONTINUE_FILE"
-          echo "# このセッションはバックグラウンドのコマンド実行が完了した後の継続セッション" >> "$PROMPT_FILE"
-          cat "$CONTINUE_PROMPT" >> "$PROMPT_FILE"
-          rm "$CONTINUE_PROMPT"
-          cat "$PROMPT_FILE" | claude \
-            --print \
-            --output-format stream-json \
-            --verbose \
-            --model sonnet \
-            --disallowedTools "Bash(git) Bash(gh)"
+          claude --print --output-format stream-json --verbose --dangerously-skip-permissions --continue
         done
     - name: Handle Errors
       if: failure()
