@@ -32,15 +32,17 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
-        # プロンプトファイルを作成
-        PROMPT_FILE=$(mktemp)
-        trap "rm -f $PROMPT_FILE" EXIT
+        # プロンプトファイルと継続ファイルを作成
+        PROMPT_FILE=$(mktemp --suffix=.txt spikybot-prompt-XXXXXXXX)
+        CONTINUE_FILE=$(mktemp --suffix=.sh spikybot-continue-XXXXXXXX)
+        trap "rm -f $PROMPT_FILE $CONTINUE_FILE" EXIT
         
         cat > "$PROMPT_FILE" << EOF
         # Session Context
         current_branch = ${{ github.ref_name }}
         event_name = ${{ github.event_name }}
         session_number = ${{ github.event.issue.number || github.event.pull_request.number }}
+        continue_file = $CONTINUE_FILE
         # Spikybot Code Agent General Prompt
         - あなたの名前はSpikyです
         - ユーザーは@spikybotと呼びかけてあなたを呼び出します
@@ -75,7 +77,7 @@ runs:
            - ただし、プロジェクトファイルの確認、Web検索、開発環境の確認など、読み取りタスクは自由に行ってよい
         6. コマンドのタイムアウトの発生時の処理
            - タイムアウトが発生した場合の継続スクリプト作成:
-             * 継続プロンプトファイルを作成して次回実行に備える
+             * 継続スクリプトファイル($CONTINUE_FILE)に実行するコマンドを書き込んで次回実行に備える
            - セッション終了処理:
              * ユーザーへの進捗報告は行わない
              * exit 0で現在のセッションを終了
@@ -147,13 +149,11 @@ runs:
         cat "$PROMPT_FILE" | claude --print --output-format stream-json --verbose --dangerously-skip-permissions
         
         # 長時間コマンドのタイムアウト対策
-        CONTINUE_FILE=$(mktemp)
-        trap "rm -f $CONTINUE_FILE" EXIT
-        
         while [ -f "$CONTINUE_FILE" ]; do
           cat "$CONTINUE_FILE"
           bash -l -e "$CONTINUE_FILE"
           rm "$CONTINUE_FILE"
+          touch "$CONTINUE_FILE"
           claude --print --output-format stream-json --verbose --dangerously-skip-permissions --continue
         done
     - name: Handle Errors
