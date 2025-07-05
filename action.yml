@@ -16,9 +16,9 @@ runs:
         COMMENT_OUTPUT=$(gh issue comment "$SESSION_NUMBER" --body "$INITIAL_RESPONSE")
         AGENT_INITIAL_COMMENT_ID=$(echo "$COMMENT_OUTPUT" | grep -o 'issuecomment-[0-9]*' | sed 's/issuecomment-//')
         
-        # プロンプトファイルと継続ファイルを作成
-        PROMPT_FILE=$(mktemp --suffix=.txt spikybot-prompt-XXXXXXXX)
-        CONTINUE_FILE=$(mktemp --suffix=.sh spikybot-continue-XXXXXXXX)
+        # プロンプトファイルを作成
+        PROMPT_FILE=$(mktemp ./spikybot-prompt-XXXXXXXX.txt)
+        CONTINUE_FILE="./spikybot-continue-$$-$(date +%s).sh"
         trap "rm -f $PROMPT_FILE $CONTINUE_FILE" EXIT
         
         cat > "$PROMPT_FILE" << EOF
@@ -139,7 +139,6 @@ runs:
           cat "$CONTINUE_FILE"
           bash -l -e "$CONTINUE_FILE"
           rm "$CONTINUE_FILE"
-          touch "$CONTINUE_FILE"
           claude --print --output-format stream-json --verbose --dangerously-skip-permissions --continue
         done
     - name: Handle Errors
