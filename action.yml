@@ -3,28 +3,24 @@ description: 'Autonomous coding agent running on GitHub Actions with Codex CLI'
 inputs:
   github-token:
     description: 'GitHub Token'
-    required: false
+    required: true
+  codex-token:
+    description: 'Codex auth JSON or base64(JSON)'
+    required: true
 runs:
   using: 'composite'
   steps:
     - name: Install Codex CLI
       shell: bash
       run: |
-        which codex >/dev/null 2>&1 && exit 0
         npm i -g @openai/codex@latest
 
     - name: Configure Codex Auth
       shell: bash
       run: |
         mkdir -p "$HOME/.codex"
-        [ -f "$HOME/.codex/auth.json" ] && exit 0
-        [ -n "${CODEX_TOKEN:-}" ] || exit 1
-        echo "$CODEX_TOKEN" | base64 -d > "$HOME/.codex/auth.json" 2>/dev/null || printf '%s' "$CODEX_TOKEN" > "$HOME/.codex/auth.json"
-
-    - name: Verify Codex CLI
-      shell: bash
-      run: |
-        which codex >/dev/null 2>&1 || exit 1
+        TOKEN="${{ inputs.codex-token }}"
+        echo "$TOKEN" | base64 -d > "$HOME/.codex/auth.json" 2>/dev/null || printf '%s' "$TOKEN" > "$HOME/.codex/auth.json"
 
     - name: Execute Codex
       shell: bash
@@ -123,7 +119,6 @@ runs:
           # ユーザーコメント
           ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
       run: |
-        [ -n "${PROMPT:-}" ] || exit 1
         echo "$PROMPT" | codex exec --dangerously-bypass-approvals-and-sandbox
         
     - name: Handle Errors
