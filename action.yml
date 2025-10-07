@@ -33,6 +33,7 @@ runs:
         NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
+        echo run=$run
         b="Thinking... [run](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
         u=$(gh issue comment "${NUMBER}" -R "$GITHUB_REPOSITORY" -b "$b")
         i=${u##*issuecomment-}
