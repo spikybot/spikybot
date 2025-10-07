@@ -22,7 +22,8 @@ runs:
         run=false
         [[ "$BODY" == *"@$bot_login"* ]] && run=true
         [[ "$ASSIGNEES" == *"\"$bot_login\""* ]] && run=true
-        [[ "$SENDER" == "$bot_login" ]] && run=""
+        [[ "$SENDER" == "$bot_login" ]] && run=false
+        echo $bot_login, $BODY, $ASSIGNEES, $SENDER
         echo "run=$run" >>"$GITHUB_ENV"
 
     - name: Post acknowledgement comment
