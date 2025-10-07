@@ -18,13 +18,13 @@ runs:
         SENDER: ${{ github.event.sender.login }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
-        bot_login=$(gh api user --jq '.login')
-        run=false
-        [[ "$BODY" == *"@$bot_login"* ]] && run=true
-        [[ "$ASSIGNEES" == *"\"$bot_login\""* ]] && run=true
-        [[ "$SENDER" == "$bot_login" ]] && run=false
-        echo $bot_login, $BODY, $ASSIGNEES, $SENDER
-        echo "run=$run" >>"$GITHUB_ENV"
+        BOT=$(gh api user --jq '.login')
+        RUN=false
+        [[ "$BODY" == *"@$BOT"* ]] && RUN=true
+        [[ "$ASSIGNEES" == *"\"$BOT\""* ]] && RUN=true
+        [[ "$SENDER" == "$BOT" ]] && RUN=false
+        echo $BOT, $BODY, $ASSIGNEES, $SENDER, $RUN
+        echo "run=$RUN" >>"$GITHUB_ENV"
 
     - name: Post acknowledgement comment
       if: ${{ env.run && github.event.action != 'edited' }}
