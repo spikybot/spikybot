@@ -27,21 +27,21 @@ runs:
         echo "run=$RUN" >>"$GITHUB_ENV"
 
     - name: Post acknowledgement comment
-      if: ${{ env.run && github.event.action != 'edited' }}
+      if: ${{ env.run == 'true' && github.event.action != 'edited' }}
       shell: bash
       env:
         NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
-        echo run=$run
-        b="Thinking... [run](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
+        L="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        b="Thinking... [run]($L)"
         u=$(gh issue comment "${NUMBER}" -R "$GITHUB_REPOSITORY" -b "$b")
         i=${u##*issuecomment-}
         echo "comment_id=$i" >>"$GITHUB_ENV"
         echo "run=false" >>"$GITHUB_ENV"
 
     - name: Update acknowledgement comment
-      if: ${{ env.run && github.event_name == 'issue_comment' && github.event.action == 'edited' }}
+      if: ${{ env.run == 'true' && github.event_name == 'issue_comment' && github.event.action == 'edited' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -69,7 +69,7 @@ runs:
         echo "run=false" >>"$GITHUB_ENV"
 
     - name: Checkout repository
-      if: ${{ env.run }}
+      if: ${{ env.run == 'true' }}
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -91,7 +91,7 @@ runs:
         echo "$CODEX_TOKEN" | base64 -d > "$HOME/.codex/auth.json"
 
     - name: Execute Codex
-      if: ${{ env.run }}
+      if: ${{ env.run == 'true' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -251,53 +251,20 @@ runs:
           - 実行の3.3エラー発生時: エラーの内容、原因予想、解決案、完了タスクと残りのタスクを報告
           - 最終報告はどの分岐でも必ず行われる
           - 終了
-
-          ## =========ユーザーからのプロンプト==========
+          ## ===========Issue || PRの本文=============
+          ${{ github.event.issue.body || github.event.pull_request.body || "" }}
+          ## =========ユーザーからのコメント==========
           ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
       run: |
         echo "$PROMPT" | codex exec -c "shell_environment_policy.ignore_default_excludes=true" --dangerously-bypass-approvals-and-sandbox
 
-    - name: Consolidate final response comment
-      if: ${{ env.run }}
+    - name: Handle Errors
+      if: failure()
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.github-token }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        REPO_SLUG: ${{ github.repository }}
-        COMMENT_ID: ${{ env.comment }}
-        TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        SESSION_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
       run: |
-        comment_id="${COMMENT_ID}"
-        if [[ -z "$comment_id" ]]; then
-          exit 0
-        fi
-
-        repo_slug="${REPO_SLUG}"
-        ack_body="$(gh api repos/${repo_slug}/issues/comments/${comment_id} --jq '.body' || echo '')"
-        if [[ -z "$ack_body" ]]; then
-          exit 0
-        fi
-
-        # If the acknowledgement already contains final text (not just Thinking...), nothing to do
-        if [[ "$ack_body" != Thinking* ]]; then
-          exit 0
-        fi
-
-        comments_json="$(gh api repos/${repo_slug}/issues/${TARGET_NUMBER}/comments --paginate || echo '[]')"
-        latest_entry="$(printf '%s\n' "$comments_json" | jq -r --arg ack "$comment_id" '  [ .[] | select(.user.login == "spikybot") | select((.id|tostring) != $ack) ]  | sort_by(.id) | last // empty')"
-
-        if [[ -z "$latest_entry" || "$latest_entry" == "null" ]]; then
-          exit 0
-        fi
-
-        latest_id="$(printf '%s' "$latest_entry" | jq -r '.id')"
-        latest_body="$(printf '%s' "$latest_entry" | jq -r '.body')"
-
-        if [[ -z "$latest_id" || -z "$latest_body" ]]; then
-          exit 0
-        fi
-
-        jq -n --arg body "$latest_body" '{body:$body}' \
-          | gh api repos/${repo_slug}/issues/comments/${comment_id} --method PATCH -H 'Content-Type: application/json' --input - >/dev/null
-
-        gh api repos/${repo_slug}/issues/comments/${latest_id} --method DELETE >/dev/null
+        L="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        B="
+        gh issue comment "$SESSION_NUMBER" --body "@${{ github.actor }} An error has occurred [Run #${{ github.run_number }}]()"
