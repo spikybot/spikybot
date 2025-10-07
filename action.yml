@@ -252,7 +252,7 @@ runs:
           - 最終報告はどの分岐でも必ず行われる
           - 終了
           ## ===========Issue || PRの本文=============
-          ${{ github.event.issue.body || github.event.pull_request.body || "" }}
+          ${{ github.event.issue.body || github.event.pull_request.body }}
           ## =========ユーザーからのコメント==========
           ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
       run: |
