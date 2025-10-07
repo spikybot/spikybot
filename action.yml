@@ -5,33 +5,198 @@ inputs:
     description: 'GitHub Token'
     required: true
   codex-token:
-    description: 'Codex Auth base64(JSON)'
+    description: 'Codex Auth Token'
     required: true
 runs:
   using: 'composite'
   steps:
+    - id: guard
+      name: Evaluate trigger conditions
+      shell: bash
+      run: |
+        body=$(jq -r '[.issue.body, .pull_request.body, .comment.body] | map(select(. != null)) | join("\n")' "$GITHUB_EVENT_PATH")
+        target_number=$(jq -r '(.issue.number // .pull_request.number // "")' "$GITHUB_EVENT_PATH")
+        comment_id=$(jq -r '(.comment.id // "")' "$GITHUB_EVENT_PATH")
+        action=$(jq -r '.action // ""' "$GITHUB_EVENT_PATH")
+        event_name=${GITHUB_EVENT_NAME:-}
+        repo_owner="${GITHUB_REPOSITORY%%/*}"
+        repo_name="${GITHUB_REPOSITORY#*/}"
+
+        actor=$(jq -r '.sender.login // ""' "$GITHUB_EVENT_PATH")
+        author=$(jq -r '(.comment.user.login // .issue.user.login // .pull_request.user.login // "")' "$GITHUB_EVENT_PATH")
+        assignee=$(jq -r '.assignee.login // ""' "$GITHUB_EVENT_PATH")
+        assigned_state=$(jq -r --arg bot "spikybot" '
+          (if .issue != null then .issue.assignees
+           else if .pull_request != null then .pull_request.assignees
+           else if .comment != null and .issue != null then .issue.assignees
+           else [] end end end // []) | map(.login == $bot) | any
+        ' "$GITHUB_EVENT_PATH" 2>/dev/null)
+
+        actor_lc=${actor,,}
+        author_lc=${author,,}
+        assignee_lc=${assignee,,}
+        mention_present="false"
+        if [[ "$body" == *"@spikybot"* ]]; then
+          mention_present="true"
+        fi
+
+        should_run="false"
+        trigger_reason=""
+
+        if [[ "$actor_lc" == "spikybot" || "$author_lc" == "spikybot" ]]; then # 投稿者あるいは実行者がspikybot自身なら反応しない
+          should_run="false"
+        elif [[ "$action" == "assigned" && "$assignee_lc" == "spikybot" ]]; then # アサイン直後でspikybotが担当になった場合
+          should_run="true"
+          trigger_reason="assigned"
+        elif [[ "$mention_present" == "true" ]]; then # 本文・コメントに@spikybotが含まれている場合
+          should_run="true"
+          trigger_reason="mention"
+        elif [[ "$assigned_state" == "true" ]]; then # 既に担当者にspikybotが含まれている状態の場合
+          should_run="true"
+          trigger_reason="assigned_state"
+        fi
+
+        {
+          echo "should_run=$should_run"
+          echo "target_number=$target_number"
+          echo "comment_id=$comment_id"
+          echo "event_name=$event_name"
+          echo "event_action=$action"
+          echo "repo_owner=$repo_owner"
+          echo "repo_name=$repo_name"
+          echo "trigger_reason=$trigger_reason"
+          echo "actor=$actor"
+          echo "author=$author"
+          echo "assigned_state=$assigned_state"
+        } >>"$GITHUB_OUTPUT"
+
+        echo "[guard] should_run=$should_run, reason=$trigger_reason, event=$event_name, action=$action"
+
+    - id: initial_comment_edit
+      name: Update mechanical acknowledgement
+      if: ${{ steps.guard.outputs.should_run == 'true' && steps.guard.outputs.event_name == 'issue_comment' && steps.guard.outputs.event_action == 'edited' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REPO_OWNER: ${{ steps.guard.outputs.repo_owner }}
+        REPO_NAME: ${{ steps.guard.outputs.repo_name }}
+        TARGET_NUMBER: ${{ steps.guard.outputs.target_number }}
+        COMMENT_ID: ${{ steps.guard.outputs.comment_id }}
+      run: |
+        repo_slug="${REPO_OWNER}/${REPO_NAME}"
+        if [[ -z "$REPO_OWNER" || -z "$REPO_NAME" || "$repo_slug" == "/" ]]; then
+          repo_slug="${GITHUB_REPOSITORY:-}"
+        fi
+
+        if [[ -z "$repo_slug" || -z "${TARGET_NUMBER:-}" || -z "${COMMENT_ID:-}" ]]; then
+          echo "comment_id=" >>"$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        bot_login="$(gh api user --jq '.login')"
+        comments_json="$(gh api repos/${repo_slug}/issues/${TARGET_NUMBER}/comments --paginate)"
+        bot_comment_id="$(printf '%s\n' "$comments_json" | jq -r --arg edited_id "${COMMENT_ID}" --arg bot "$bot_login" '
+          (map({id: (.id|tostring), login: (.user.login // "")})) as $comments
+          | ($comments | length) as $len
+          | ($comments | map(.id == $edited_id) | index(true)) as $edited_index
+          | if $edited_index == null then empty
+            else [range($edited_index + 1; $len) | select(($comments[.].login) == $bot) | $comments[.].id] | first // empty
+            end
+        ')"
+
+        if [[ -n "$bot_comment_id" && "$bot_comment_id" != "null" ]]; then
+          comment_body="Thinking..."
+          payload=$(jq -n --arg body "$comment_body" '{body:$body}')
+          set +e
+          printf '%s' "$payload" | gh api repos/${repo_slug}/issues/comments/${bot_comment_id} --method PATCH -H 'Content-Type: application/json' --input -
+          status=$?
+          set -e
+          if [[ $status -eq 0 ]]; then
+            echo "comment_id=$bot_comment_id" >>"$GITHUB_OUTPUT"
+            echo "[ack] Updated comment ${bot_comment_id} with mechanical response."
+            exit 0
+          else
+            echo "[ack] Failed to update existing comment ${bot_comment_id}; posting a new acknowledgement." >&2
+          fi
+        fi
+
+        echo "comment_id=" >>"$GITHUB_OUTPUT"
+
+    - id: initial_comment_new
+      name: Post mechanical acknowledgement
+      if: ${{ steps.guard.outputs.should_run == 'true' && steps.initial_comment_edit.outputs.comment_id == '' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REPO_OWNER: ${{ steps.guard.outputs.repo_owner }}
+        REPO_NAME: ${{ steps.guard.outputs.repo_name }}
+        TARGET_NUMBER: ${{ steps.guard.outputs.target_number }}
+      run: |
+        repo_slug="${REPO_OWNER}/${REPO_NAME}"
+        if [[ -z "$REPO_OWNER" || -z "$REPO_NAME" || "$repo_slug" == "/" ]]; then
+          repo_slug="${GITHUB_REPOSITORY:-}"
+        fi
+
+        if [[ -z "$repo_slug" || -z "${TARGET_NUMBER:-}" ]]; then
+          echo "comment_id=" >>"$GITHUB_OUTPUT"
+          echo "[ack] Missing repository metadata; skipping acknowledgement."
+          exit 0
+        fi
+
+        comment_body="Thinking..."
+
+        comment_id=$(gh api repos/${repo_slug}/issues/${TARGET_NUMBER}/comments --method POST -f body="$comment_body" --jq '.id')
+        if [[ -z "$comment_id" || "$comment_id" == "null" ]]; then
+          echo "comment_id=" >>"$GITHUB_OUTPUT"
+          echo "[ack] Failed to post mechanical response."
+          exit 0
+        fi
+
+        echo "comment_id=$comment_id" >>"$GITHUB_OUTPUT"
+        echo "[ack] Posted new mechanical response as comment ${comment_id}."
+
+    - name: Checkout repository
+      if: ${{ steps.guard.outputs.should_run == 'true' }}
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Install Codex CLI
+      if: ${{ steps.guard.outputs.should_run == 'true' }}
       shell: bash
       run: |
         npm i -g @openai/codex@latest
 
     - name: Configure Codex Auth
+      if: ${{ steps.guard.outputs.should_run == 'true' }}
       shell: bash
       env:
-        TOKEN: ${{ inputs.codex-token }}
+        CODEX_TOKEN: ${{ inputs.codex-token }}
       run: |
         mkdir -p "$HOME/.codex"
-        echo "$TOKEN" | base64 -d > "$HOME/.codex/auth.json"
+        # CODEX_TOKEN="$(openssl base64 -A -in "$HOME/.codex/auth.json")"
+        echo "$CODEX_TOKEN" | base64 -d > "$HOME/.codex/auth.json"
 
     - name: Execute Codex
+      if: ${{ steps.guard.outputs.should_run == 'true' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REPO_SLUG: ${{ github.repository }}
+        ACK_COMMENT_ID_EDIT: ${{ steps.initial_comment_edit.outputs.comment_id }}
+        ACK_COMMENT_ID_NEW: ${{ steps.initial_comment_new.outputs.comment_id }}
+        TARGET_NUMBER: ${{ steps.guard.outputs.target_number }}
         PROMPT: |
           ## 0.環境変数
           - コマンド例の中の <variable> は以下の環境変数に手動で置換する
-          - event_name=${{ github.event_name }}
-          - session_number=${{ github.event.issue.number || github.event.pull_request.number }}
+          - event_name=${{ steps.guard.outputs.event_name }}
+          - event_action=${{ steps.guard.outputs.event_action }}
+          - trigger_reason=${{ steps.guard.outputs.trigger_reason }}
+          - assigned_state=${{ steps.guard.outputs.assigned_state }}
+          - session_number=${{ steps.guard.outputs.target_number }}
           - current_branch=${{ github.ref_name }}
           - github_actor=${{ github.actor }}
           - run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -46,7 +211,13 @@ runs:
           - $ gh issue view <session_number> --comments
           - 会話履歴であなた(@spikybot)からユーザーの割り込みの場合は過去の指示を考慮する
           - 中断された過去のあなたの作業内容は全て破棄されている
-          - その他、ここでは読み取りタスクのみが許可される
+          - ghコマンドを用いたコメント投稿/編集などの書き込みは許可されている（必要に応じて実行する）
+          - 認証セットアップ: まだ未ログインの場合は、環境変数のトークンを使って認証する（出力にトークン値は絶対に表示しない）
+          - 例: `gh --version && (gh auth status -h github.com || true) && (printenv GH_TOKEN | gh auth login --with-token >/dev/null 2>&1 || true) && gh auth status -h github.com`
+          - 複数行の文字列をコマンドに渡すときは `cat <<'EOF' ... EOF` のヒアドキュメントを用いる
+          - `trigger_reason` が `assigned` の場合は最新の本文/コメント（自分以外の投稿）を読み、その内容を受領するコメントを必ず残す。
+          - `trigger_reason` が `assigned_state` の場合は担当者として常時反応する。メンションが無くても適切に進行状況を報告する。
+          - 初回コメントのIDは `ACK_COMMENT_ID_EDIT` または `ACK_COMMENT_ID_NEW` に格納されている（いずれか非空の方を使用する）。
 
           1.2 メッセージ分類
           - ユーザーからのプロンプトを元に以下の方針を判断する
@@ -57,8 +228,13 @@ runs:
           1.3 初回応答(調査と実装の場合に実行)
           - ユーザーにタスクを受け取ったことを報告する
           - コメントのbodyは適宜変更
-          - $ gh issue comment <session_number> --body "考えています... [Run #${{ github.run_number }}](<run_url>)"
-          - ここでコマンドからの応答のissuecommentのidの数字を必ず覚えておく(以下、<comment_id>)
+          - |
+            $ gh issue comment <session_number> --body "$(cat <<'EOF'
+            考えています...
+            [Run #${{ github.run_number }}](<run_url>)
+            EOF
+            )"
+          - ここでコマンドからの応答のissuecommentのidの数字を必ず覚えておく(以下、<comment_id>)。`ACK_COMMENT_ID_NEW` または `ACK_COMMENT_ID_EDIT` がセットされている場合はそれを利用できる。
 
           ## 2.計画(調査と実装の場合に実行)
           2.1 調査(必要に応じて以下の調査を行う)
@@ -83,9 +259,10 @@ runs:
           - 計画が遂行可能と判断の場合は経過報告を行う
           - ここで可能であれば計画で作成したTODOをユーザーに報告する
           - 詳細の文脈は省略しても良い
-          - 以下のbodyを適切に変更して経過報告を行う
-          - このコマンドで初回応答のコメントを上書き編集する形で報告を行う
-          - $ gh issue comment --edit <comment_id> --body "現在のタスク状況は以下の通りです/n1. ..."
+          - 以下の本文を適宜変更し、初回コメントを `jq -n --arg body ... | gh api ... --method PATCH --input -` で上書きする
+          - |
+            $ jq -n --arg body $'現在のタスク状況は以下の通りです\n1. ...' '{body:$body}' \
+              | gh api repos/${REPO_SLUG}/issues/comments/<comment_id> --method PATCH --input -
 
           ## 3. 実行(調査と実装の場合に実行)
           3.1 タスク選択
@@ -98,6 +275,10 @@ runs:
           - 実装の場合、必要なコマンドの全てを実行可能(編集、生成、コマンド実行、リファクタ等)
           - ユーザーのプロンプトの指示に忠実に従ってタスクを遂行する
           - タスクの途中か完了したあとで新たに必要なTODOが見つかった場合はTODOに追加する
+          - 画像に文字が含まれる場合は以下を徹底する
+            - `gh api` などで添付画像の署名付きURLを取得し、`curl -L -o /tmp/<session_number>_image.<ext> <url>` でダウンロードする
+            - `view_image` などの手段で画像を開き、あなた自身が目視で内容を確認する
+            - OCRや画像解析ツールは使用禁止
 
           3.3 エラーハンドリング
           - エラーの場合とは、指示が曖昧な点、自力解決不能なエラー、実装困難なタスクが発見された場合
@@ -110,7 +291,9 @@ runs:
 
           3.4 経過報告
           - 現在の状況を初回応答のコメントを上書き編集する形で報告を行う
-          - $ gh issue comment --edit <comment_id> --body "現在のタスク状況は以下の通りです/n1. ..."
+          - |
+            $ jq -n --arg body $'現在のタスク状況は以下の通りです\n1. ...' '{body:$body}' \
+              | gh api repos/${REPO_SLUG}/issues/comments/<comment_id> --method PATCH --input -
           - 経過報告はタスクを1つ完了するか失敗する毎に上書き編集して更新する
           - この際に、過去の完了済みタスクが見えなくならないように、2.4の経過報告の文章を適宜編集する形を取る
 
@@ -144,13 +327,18 @@ runs:
           - 説明: 目的と変更内容を記載
           - Issue完了時: PRの説明文末尾に 'close #<session_number>'と記述
           - ブランチ名が"spikybot/xxxxxx"の場合は以下の通り
-          - gh pr create --base "spikybot/xxxxxx" --title "#123 Add new feature" --body "This adds a new feature.\n説明...\n説明..."
+          - |
+            gh pr create --base "spikybot/xxxxxx" --title "#123 Add new feature" --body "$(cat <<'EOF'
+            This adds a new feature.
+            説明...
+            説明...
+            EOF
+            )"
 
           ## 5. 報告
-          - 以下のコマンドを使って先頭に "@<github_actor> " 付きの新規コメントを作成する
-          - gh issue comment <session_number> --body "@<github_actor> タスクが完了しました。\nタスクの結果は..."
-          - ここでは既存コメントの編集ではなく、新規コメントを必ず1つ作成する
-          - 応答: 生成した回答をそのままコメントとして送信する
+          - 初回応答で取得した <comment_id> のコメントを上書き編集して最終報告を行う
+          - 応答: 生成した回答（自然な文章・機械的定型文は避ける）を先頭に"@<github_actor> "を付けてそのまま送信する
+          - 例: `jq -n --arg body "@<github_actor> <生成した短い回答>" '{body:$body}' | gh api repos/${REPO_SLUG}/issues/comments/<comment_id> --method PATCH --input -`
           - 調査: 調査範囲・方法・結果・根拠・次の推奨アクションなどを必要に応じて要約して報告
           - 実装: 作業要約、実行コマンドと結果、作成・修正ファイル、エラーと対処、作成したPR番号（該当時）を報告
           - 実行の3.3エラー発生時: エラーの内容、原因予想、解決案、完了タスクと残りのタスクを報告
@@ -160,13 +348,50 @@ runs:
           ## =========ユーザーからのプロンプト==========
           ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
       run: |
-        echo "$PROMPT" | codex exec --dangerously-bypass-approvals-and-sandbox
-        
-    - name: Handle Errors
-      if: failure()
+        echo "$PROMPT" | codex exec -c "shell_environment_policy.ignore_default_excludes=true" --dangerously-bypass-approvals-and-sandbox
+
+    - name: Consolidate final response comment
+      if: ${{ steps.guard.outputs.should_run == 'true' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
-        SESSION_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REPO_SLUG: ${{ github.repository }}
+        ACK_COMMENT_ID_EDIT: ${{ steps.initial_comment_edit.outputs.comment_id }}
+        ACK_COMMENT_ID_NEW: ${{ steps.initial_comment_new.outputs.comment_id }}
+        TARGET_NUMBER: ${{ steps.guard.outputs.target_number }}
       run: |
-        gh issue comment "$SESSION_NUMBER" --body "@${{ github.actor }} An error has occurred [Run #${{ github.run_number }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        comment_id="${ACK_COMMENT_ID_EDIT:-${ACK_COMMENT_ID_NEW}}"
+        if [[ -z "$comment_id" ]]; then
+          exit 0
+        fi
+
+        repo_slug="${REPO_SLUG}"
+        ack_body="$(gh api repos/${repo_slug}/issues/comments/${comment_id} --jq '.body' 2>/dev/null || echo '')"
+        if [[ -z "$ack_body" ]]; then
+          exit 0
+        fi
+
+        # If the acknowledgement already contains final text (not just Thinking...), nothing to do
+        if [[ "$ack_body" != Thinking* ]]; then
+          exit 0
+        fi
+
+        comments_json="$(gh api repos/${repo_slug}/issues/${TARGET_NUMBER}/comments --paginate 2>/dev/null || echo '[]')"
+        latest_entry="$(printf '%s\n' "$comments_json" | jq -r --arg ack "$comment_id" '  [ .[] | select(.user.login == "spikybot") | select((.id|tostring) != $ack) ]  | sort_by(.id) | last // empty')"
+
+        if [[ -z "$latest_entry" || "$latest_entry" == "null" ]]; then
+          exit 0
+        fi
+
+        latest_id="$(printf '%s' "$latest_entry" | jq -r '.id')"
+        latest_body="$(printf '%s' "$latest_entry" | jq -r '.body')"
+
+        if [[ -z "$latest_id" || -z "$latest_body" ]]; then
+          exit 0
+        fi
+
+        jq -n --arg body "$latest_body" '{body:$body}' \
+          | gh api repos/${repo_slug}/issues/comments/${comment_id} --method PATCH -H 'Content-Type: application/json' --input - >/dev/null
+
+        gh api repos/${repo_slug}/issues/comments/${latest_id} --method DELETE >/dev/null
