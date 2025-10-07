@@ -18,10 +18,9 @@ runs:
         SENDER: ${{ github.event.sender.login }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
-        bot_login=$(gh api user --jq -r '.login' || true)
+        bot_login=$(gh api user --jq '.login')
         run=false
         [[ "$BODY" == *"@$bot_login"* ]] && run=true
-        echo $bot_login, $BODY, "@$bot_login", $run
         [[ "$ASSIGNEES" == *"\"$bot_login\""* ]] && run=true
         [[ "$SENDER" == "$bot_login" ]] && run=""
         echo "run=$run" >>"$GITHUB_ENV"
