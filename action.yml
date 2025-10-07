@@ -13,8 +13,8 @@ runs:
     - name: Evaluate trigger conditions
       shell: bash
       env:
-        BODY: ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body || '' }}
-        ASSIGNEES: ${{ toJson(github.event.issue.assignees || github.event.pull_request.assignees || github.event.assignees || []) }}
+        BODY: ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
+        ASSIGNEES: ${{ toJson(github.event.issue.assignees || github.event.pull_request.assignees) }}
         SENDER: ${{ github.event.sender.login || '' }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
