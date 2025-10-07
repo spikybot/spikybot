@@ -34,7 +34,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         b="Thinking... [run](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
-        u=$(gh issue comment "${NUMBER}" -R "$GITHUB_REPOSITORY" -b "$b"
+        u=$(gh issue comment "${NUMBER}" -R "$GITHUB_REPOSITORY" -b "$b")
         i=${u##*issuecomment-}
         echo "comment_id=$i" >>"$GITHUB_ENV"
         echo "run=false" >>"$GITHUB_ENV"
