@@ -15,15 +15,15 @@ runs:
       env:
         BODY: ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
         ASSIGNEES: ${{ toJson(github.event.issue.assignees || github.event.pull_request.assignees) }}
-        SENDER: ${{ github.event.sender.login || '' }}
+        SENDER: ${{ github.event.sender.login }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
         bot_login=$(gh api user --jq -r '.login' || true)
         run=false
-        [[ -n "$bot_login" && "$BODY" == *"@$bot_login"* ]] && run=true
+        [[ "$BODY" == *"@$bot_login"* ]] && run=true
         echo $bot_login, $BODY, "@$bot_login", $run
-        [[ -n "$bot_login" && "$ASSIGNEES" == *"\"$bot_login\""* ]] && run=true
-        [[ -n "$bot_login" && "$SENDER" == "$bot_login" ]] && run=""
+        [[ "$ASSIGNEES" == *"\"$bot_login\""* ]] && run=true
+        [[ "$SENDER" == "$bot_login" ]] && run=""
         echo "run=$run" >>"$GITHUB_ENV"
 
     - name: Post acknowledgement comment
