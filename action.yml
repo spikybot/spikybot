@@ -10,7 +10,7 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Evaluate trigger conditions
+    - name: Evaluate Run Conditions
       shell: bash
       env:
         BODY: ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
@@ -18,30 +18,31 @@ runs:
         SENDER: ${{ github.event.sender.login }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
+        # Evaluate Run Conditions
         BOT=$(gh api user --jq '.login')
         RUN=false
         [[ "$BODY" == *"@$BOT"* ]] && RUN=true
         [[ "$ASSIGNEES" == *"\"$BOT\""* ]] && RUN=true
         [[ "$SENDER" == "$BOT" ]] && RUN=false
-        echo $BOT, $BODY, $ASSIGNEES, $SENDER, $RUN
-        echo "run=$RUN" >>"$GITHUB_ENV"
+        echo "$BOT" "$BODY" "$ASSIGNEES" "$SENDER" "$RUN"
+        echo "run=$RUN" >> "$GITHUB_ENV"
 
-    - name: Post acknowledgement comment
+    - name: Initial Comment (new)
       if: ${{ env.run == 'true' && github.event.action != 'edited' }}
       shell: bash
       env:
         NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: |
+        # Initial Comment (new)
         L="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-        b="Thinking... [run]($L)"
-        u=$(gh issue comment "${NUMBER}" -R "$GITHUB_REPOSITORY" -b "$b")
-        i=${u##*issuecomment-}
-        echo "comment_id=$i" >>"$GITHUB_ENV"
-        echo "run=false" >>"$GITHUB_ENV"
+        B="Thinking... [run]($L)"
+        U=$(gh issue comment "$NUMBER" -R "$GITHUB_REPOSITORY" -b "$B")
+        I=${U##*issuecomment-}
+        echo "comment_id=$I" >> "$GITHUB_ENV"
 
-    - name: Update acknowledgement comment
-      if: ${{ env.run == 'true' && github.event_name == 'issue_comment' && github.event.action == 'edited' }}
+    - name: Initial Comment (edit)
+      if: ${{ env.run == 'true' && github.event.action == 'edited' }}
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
@@ -50,23 +51,22 @@ runs:
         TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         JOB_NAME: ${{ github.job }}
         RUN_ID: ${{ github.run_id }}
+        EDITED_COMMENT_ID: ${{ github.event.comment.id || 0 }}
       run: |
-        comment=""
-        bot=$(gh api user --jq -r '.login' || true)
-        if [[ -n "$bot" ]]; then
-          comment=$(gh api "repos/${REPO}/issues/${TARGET_NUMBER}/comments" --paginate --jq "map(select(.user.login == \"$bot\")) | last | .id" || true)
-          [[ "$comment" == "null" ]] && comment=""
-          if [[ -n "$comment" ]]; then
-            job_id=$(gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs" --paginate --jq '.jobs[] | select(.name == "'"${JOB_NAME}"'") | .id' | tail -n1 || true)
-            job_url="https://github.com/${REPO}/actions/runs/${RUN_ID}"
-            if [[ -n "$job_id" ]]; then
-              job_url+="/job/${job_id}"
-            fi
-            gh api "repos/${REPO}/issues/comments/${comment}" --method PATCH -f body="Thinking... [${JOB_NAME}](${job_url})"
-          fi
-        fi
-        echo "comment=$comment" >>"$GITHUB_ENV"
-        echo "run=false" >>"$GITHUB_ENV"
+        # Initial Comment (edit)
+        echo "$EDITED_COMMENT_ID"
+        BOT=$(gh api user --jq '.login')
+        COMMENT=$(gh issue view "$TARGET_NUMBER" -R "$REPO" --json comments | jq -r --arg bot "$BOT" --argjson target "$EDITED_COMMENT" '
+          .comments.nodes
+          | sort_by(.createdAt)
+          | to_entries
+          | (map(select(.value.id == $target) | .key) | first // -1) as $idx
+          | [ .[] | select(.key > $idx and .value.author.login == $bot) | .value.databaseId ][0]
+        ')
+        echo "comment=$COMMENT" >> "$GITHUB_ENV"
+        RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
+        BODY="Thinking... [$JOB_NAME]($RUN_URL)"
+        gh issue comment "$TARGET_NUMBER" -R "$REPO" --edit "$COMMENT" --body "$BODY"
 
     - name: Checkout repository
       if: ${{ env.run == 'true' }}
@@ -78,6 +78,7 @@ runs:
       if: ${{ env.run }}
       shell: bash
       run: |
+        # Install Codex CLI
         npm i -g @openai/codex@latest
 
     - name: Configure Codex Auth
@@ -86,6 +87,7 @@ runs:
       env:
         CODEX_TOKEN: ${{ inputs.codex-token }}
       run: |
+        # Configure Codex Auth
         mkdir -p "$HOME/.codex"
         # CODEX_TOKEN="$(openssl base64 -A -in "$HOME/.codex/auth.json")"
         echo "$CODEX_TOKEN" | base64 -d > "$HOME/.codex/auth.json"
@@ -108,6 +110,36 @@ runs:
           - current_branch=${{ github.ref_name }}
           - github_actor=${{ github.actor }}
           - run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ### 関数ユーティリティ
+          ```bash
+          UPDATE-COMMENT() {
+            local C="$1"
+            local B="$2"
+            gh issue comment "$TARGET_NUMBER" --edit "$C" --body "$B"
+          }
+          # 例: UPDATE-COMMENT "$ACK_COMMENT_ID" "Thinking... [Run]($run_url)"
+
+          COMMENT() {
+            local B="$1"
+            gh issue comment "$TARGET_NUMBER" --body "$B"
+          }
+          # 例: COMMENT "作業を開始します"
+
+          PR-CREATE() {
+            local B="$1"
+            local H="$2"
+            local T="$3"
+            local D="$4"
+            gh pr create --base "$B" --head "$H" --title "$T" --body "$D"
+          }
+          # 例: PR-CREATE "main" "spikybot/task" "#123 対応" "変更点の要約"
+
+          GET-COMMENTS() {
+            gh issue comment list "$TARGET_NUMBER" --json id,author,body,createdAt --jq '.[]'
+          }
+          # 例: GET-COMMENTS
+          ```
 
           ## 1.準備
           1.1 セッション状況の確認
@@ -251,11 +283,13 @@ runs:
           - 実行の3.3エラー発生時: エラーの内容、原因予想、解決案、完了タスクと残りのタスクを報告
           - 最終報告はどの分岐でも必ず行われる
           - 終了
+
           ## ===========Issue || PRの本文=============
           ${{ github.event.issue.body || github.event.pull_request.body }}
           ## =========ユーザーからのコメント==========
           ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
       run: |
+        # Execute Codex
         echo "$PROMPT" | codex exec -c "shell_environment_policy.ignore_default_excludes=true" --dangerously-bypass-approvals-and-sandbox
 
     - name: Handle Errors
@@ -265,6 +299,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         SESSION_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
       run: |
-        L="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        B="
-        gh issue comment "$SESSION_NUMBER" --body "@${{ github.actor }} An error has occurred [Run #${{ github.run_number }}]()"
+        # Handle Errors
+        L="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        B="@$GITHUB_ACTOR An error has occurred [Run #$GITHUB_RUN_NUMBER]()"
+        gh issue comment "$SESSION_NUMBER" -R "$GITHUB_REPOSITORY" -b "$B"
