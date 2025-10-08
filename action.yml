@@ -27,7 +27,7 @@ runs:
         echo "$BOT" "$BODY" "$ASSIGNEES" "$SENDER" "$RUN"
         echo "run=$RUN" >> "$GITHUB_ENV"
 
-    - name: Initial Comment (new)
+    - name: Initial Comment
       if: ${{ env.run == 'true' && github.event.action != 'edited' }}
       shell: bash
       env:
@@ -41,34 +41,34 @@ runs:
         I=${U##*issuecomment-}
         echo "comment_id=$I" >> "$GITHUB_ENV"
 
-    - name: Initial Comment (edit)
-      if: ${{ env.run == 'true' && github.event.action == 'edited' }}
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
-        GITHUB_TOKEN: ${{ inputs.github-token }}
-        REPO: ${{ github.repository }}
-        TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
-        JOB_NAME: ${{ github.job }}
-        RUN_ID: ${{ github.run_id }}
-        EDITED_COMMENT_ID: ${{ github.event.comment.id || 0 }}
-      run: |
-        # Initial Comment (edit)
-        echo "$EDITED_COMMENT_ID"
-        BOT=$(gh api user --jq '.login')
-        COMMENT=$(gh issue view "$TARGET_NUMBER" -R "$REPO" --json comments | jq -r --arg bot "$BOT" --argjson target "$EDITED_COMMENT" '
-          .comments.nodes
-          | sort_by(.createdAt)
-          | to_entries
-          | (map(select(.value.id == $target) | .key) | first // -1) as $idx
-          | [ .[] | select(.key > $idx and .value.author.login == $bot) | .value.databaseId ][0]
-        ')
-        echo "comment=$COMMENT" >> "$GITHUB_ENV"
-        RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
-        BODY="Thinking... [$JOB_NAME]($RUN_URL)"
-        gh issue comment "$TARGET_NUMBER" -R "$REPO" --edit "$COMMENT" --body "$BODY"
+    #    - name: Initial Comment (edit)
+    #      if: ${{ env.run == 'true' && github.event.action == 'edited' }}
+    #      shell: bash
+    #      env:
+    #        GH_TOKEN: ${{ inputs.github-token }}
+    #        GITHUB_TOKEN: ${{ inputs.github-token }}
+    #        REPO: ${{ github.repository }}
+    #        TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+    #        JOB_NAME: ${{ github.job }}
+    #        RUN_ID: ${{ github.run_id }}
+    #        EDITED_COMMENT_ID: ${{ github.event.comment.id || 0 }}
+    #      run: |
+    #        # Initial Comment (edit)
+    #        echo "$EDITED_COMMENT_ID"
+    #        BOT=$(gh api user --jq '.login')
+    #        COMMENT=$(gh issue view "$TARGET_NUMBER" -R "$REPO" --json comments | jq -r --arg bot "$BOT" --argjson target "$EDITED_COMMENT" '
+    #          .comments.nodes
+    #          | sort_by(.createdAt)
+    #          | to_entries
+    #          | (map(select(.value.id == $target) | .key) | first // -1) as $idx
+    #          | [ .[] | select(.key > $idx and .value.author.login == $bot) | .value.databaseId ][0]
+    #        ')
+    #        echo "comment=$COMMENT" >> "$GITHUB_ENV"
+    #        RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
+    #        BODY="Thinking... [$JOB_NAME]($RUN_URL)"
+    #        gh issue comment "$TARGET_NUMBER" -R "$REPO" --edit "$COMMENT" --body "$BODY"
 
-    - name: Checkout repository
+    - name: Checkout Repository
       if: ${{ env.run == 'true' }}
       uses: actions/checkout@v4
       with:
@@ -81,6 +81,7 @@ runs:
         # Install Codex CLI
         npm i -g @openai/codex@latest
 
+    # CODEX_TOKEN="$(openssl base64 -A -in "$HOME/.codex/auth.json")"
     - name: Configure Codex Auth
       if: ${{ env.run }}
       shell: bash
@@ -89,7 +90,6 @@ runs:
       run: |
         # Configure Codex Auth
         mkdir -p "$HOME/.codex"
-        # CODEX_TOKEN="$(openssl base64 -A -in "$HOME/.codex/auth.json")"
         echo "$CODEX_TOKEN" | base64 -d > "$HOME/.codex/auth.json"
 
     - name: Execute Codex
@@ -301,5 +301,5 @@ runs:
       run: |
         # Handle Errors
         L="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-        B="@$GITHUB_ACTOR An error has occurred [Run #$GITHUB_RUN_NUMBER]()"
+        B="@$GITHUB_ACTOR An error has occurred [Run #$GITHUB_RUN_NUMBER]($L)"
         gh issue comment "$SESSION_NUMBER" -R "$GITHUB_REPOSITORY" -b "$B"
