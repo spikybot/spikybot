@@ -10,13 +10,22 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Enumrate all
+      shell: bash
+      run: |
+        # Enumrate All
+        echo ==================printenv=======================
+        printenv
+        echo ===================set===========================
+        set
+
     - name: Evaluate Run Conditions
       shell: bash
       env:
-        BODY: ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
-        ASSIGNEES: ${{ toJson(github.event.issue.assignees || github.event.pull_request.assignees) }}
-        SENDER: ${{ github.event.sender.login }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        ASSIGNEES: ${{ toJson(github.event.issue.assignees || github.event.pull_request.assignees) }}
+        BODY: ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
+        SENDER: ${{ github.event.sender.login }}
       run: |
         # Evaluate Run Conditions
         BOT=$(gh api user --jq '.login')
@@ -24,49 +33,48 @@ runs:
         [[ "$BODY" == *"@$BOT"* ]] && RUN=true
         [[ "$ASSIGNEES" == *"\"$BOT\""* ]] && RUN=true
         [[ "$SENDER" == "$BOT" ]] && RUN=false
-        echo "$BOT" "$BODY" "$ASSIGNEES" "$SENDER" "$RUN"
         echo "run=$RUN" >> "$GITHUB_ENV"
 
-    - name: Initial Comment
+    - name: Initial Comment (new)
       if: ${{ env.run == 'true' && github.event.action != 'edited' }}
       shell: bash
       env:
-        NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
       run: |
         # Initial Comment (new)
         L="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-        B="Thinking... [run]($L)"
+        B="Thinking[...]($L)"
         U=$(gh issue comment "$NUMBER" -R "$GITHUB_REPOSITORY" -b "$B")
         I=${U##*issuecomment-}
         echo "comment_id=$I" >> "$GITHUB_ENV"
 
-    #    - name: Initial Comment (edit)
-    #      if: ${{ env.run == 'true' && github.event.action == 'edited' }}
-    #      shell: bash
-    #      env:
-    #        GH_TOKEN: ${{ inputs.github-token }}
-    #        GITHUB_TOKEN: ${{ inputs.github-token }}
-    #        REPO: ${{ github.repository }}
-    #        TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
-    #        JOB_NAME: ${{ github.job }}
-    #        RUN_ID: ${{ github.run_id }}
-    #        EDITED_COMMENT_ID: ${{ github.event.comment.id || 0 }}
-    #      run: |
-    #        # Initial Comment (edit)
-    #        echo "$EDITED_COMMENT_ID"
-    #        BOT=$(gh api user --jq '.login')
-    #        COMMENT=$(gh issue view "$TARGET_NUMBER" -R "$REPO" --json comments | jq -r --arg bot "$BOT" --argjson target "$EDITED_COMMENT" '
-    #          .comments.nodes
-    #          | sort_by(.createdAt)
-    #          | to_entries
-    #          | (map(select(.value.id == $target) | .key) | first // -1) as $idx
-    #          | [ .[] | select(.key > $idx and .value.author.login == $bot) | .value.databaseId ][0]
-    #        ')
-    #        echo "comment=$COMMENT" >> "$GITHUB_ENV"
-    #        RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
-    #        BODY="Thinking... [$JOB_NAME]($RUN_URL)"
-    #        gh issue comment "$TARGET_NUMBER" -R "$REPO" --edit "$COMMENT" --body "$BODY"
+    #- name: Initial Comment (edit)
+    #  if: ${{ env.run == 'true' && github.event.action == 'edited' }}
+    #  shell: bash
+    #  env:
+    #    GH_TOKEN: ${{ inputs.github-token }}
+    #    GITHUB_TOKEN: ${{ inputs.github-token }}
+    #    REPO: ${{ github.repository }}
+    #    TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+    #    JOB_NAME: ${{ github.job }}
+    #    RUN_ID: ${{ github.run_id }}
+    #    EDITED_COMMENT_ID: ${{ github.event.comment.id || 0 }}
+    #  run: |
+    #    # Initial Comment (edit)
+    #    echo "$EDITED_COMMENT_ID"
+    #    BOT=$(gh api user --jq '.login')
+    #    COMMENT=$(gh issue view "$TARGET_NUMBER" -R "$REPO" --json comments | jq -r --arg bot "$BOT" --argjson target "$EDITED_COMMENT" '
+    #      .comments.nodes
+    #      | sort_by(.createdAt)
+    #      | to_entries
+    #      | (map(select(.value.id == $target) | .key) | first // -1) as $idx
+    #      | [ .[] | select(.key > $idx and .value.author.login == $bot) | .value.databaseId ][0]
+    #    ')
+    #    echo "comment=$COMMENT" >> "$GITHUB_ENV"
+    #    RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
+    #    BODY="Thinking... [$JOB_NAME]($RUN_URL)"
+    #    gh issue comment "$TARGET_NUMBER" -R "$REPO" --edit "$COMMENT" --body "$BODY"
 
     - name: Checkout Repository
       if: ${{ env.run == 'true' }}
@@ -83,7 +91,7 @@ runs:
 
     # CODEX_TOKEN="$(openssl base64 -A -in "$HOME/.codex/auth.json")"
     - name: Configure Codex Auth
-      if: ${{ env.run }}
+      if: ${{ env.run == 'true' }}
       shell: bash
       env:
         CODEX_TOKEN: ${{ inputs.codex-token }}
@@ -96,20 +104,17 @@ runs:
       if: ${{ env.run == 'true' }}
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.github-token }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        REPO_SLUG: ${{ github.repository }}
-        ACK_COMMENT_ID: ${{ env.comment }}
-        TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         PROMPT: |
           ## 0.環境変数
           - コマンド例の中の <variable> は以下の環境変数に手動で置換する
+          - repository=${{ github.repository }}
           - event_name=${{ github.event_name }}
           - event_action=${{ github.event.action }}
           - session_number=${{ github.event.issue.number || github.event.pull_request.number }}
           - current_branch=${{ github.ref_name }}
           - github_actor=${{ github.actor }}
-          - run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - comment_id=${{ env.comment_id }}
 
           ### 関数ユーティリティ
           ```bash
@@ -163,17 +168,6 @@ runs:
           - 応答: ユーザーの問いに即応する。初回応答は実行しない。セクション2.と3.と4.は何も実行しない。即座に5.報告へ移動する。
           - 調査: 読み取り中心。4.保存を行わない。3.実行の後、即座に5.報告へ移動する。
           - 実装: 実際の変更を伴う作業。このワークフローの全てを行う。
-
-          1.3 初回応答(調査と実装の場合に実行)
-          - ユーザーにタスクを受け取ったことを報告する
-          - コメントのbodyは適宜変更
-          - |
-            $ gh issue comment <session_number> --body "$(cat <<'EOF'
-            考えています...
-            [Run #${{ github.run_number }}](<run_url>)
-            EOF
-            )"
-          - ここでコマンドからの応答のissuecommentのidの数字を必ず覚えておく(以下、<comment_id>)。`ACK_COMMENT_ID` がセットされている場合はそれを利用できる。
 
           ## 2.計画(調査と実装の場合に実行)
           2.1 調査(必要に応じて以下の調査を行う)
