@@ -46,6 +46,7 @@ runs:
         # Initial Comment (new)
         L="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
         B="Thinking[...]($L)"
+        echo gh issue comment "$NUMBER" -R "$GITHUB_REPOSITORY" -b "$B"
         U=$(gh issue comment "$NUMBER" -R "$GITHUB_REPOSITORY" -b "$B")
         I=${U##*issuecomment-}
         echo "comment_id=$I" >> "$GITHUB_ENV"
