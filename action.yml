@@ -28,7 +28,7 @@ runs:
         SENDER: ${{ github.event.sender.login }}
       run: |
         # Evaluate Run Conditions
-        gh auth status --json hosts
+        gh auth status
         BOT=$(gh api user --jq '.login')
         RUN=false
         [[ "$BODY" == *"@$BOT"* ]] && RUN=true
