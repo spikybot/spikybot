@@ -52,7 +52,7 @@ runs:
         # Initial Comment (new)
         F="${FROM_URL:-https://github.com/$GITHUB_REPOSITORY/issues/$NUMBER}"
         A="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-        B="[[F]]($F) [[A]]($A) Thinking..."
+        B="[[FROM]]($F) [[RUN]]($A) Thinking..."
         U=$(gh issue comment "$NUMBER" -R "$GITHUB_REPOSITORY" -b "$B")
         I=${U##*issuecomment-}
         echo "comment_id=$I" >> "$GITHUB_ENV"
@@ -79,17 +79,18 @@ runs:
         NEEDLE="issuecomment-$EDITED_COMMENT_ID"
 
         COMMENT_JSON=$(
-          gh api -R "$REPO" "repos/:owner/:repo/issues/$TARGET_NUMBER/comments?per_page=100" --paginate \
-          | jq -s --arg bot "$BOT" --arg needle "$NEEDLE" '
-              map(.[]?)
+          gh issue view "$TARGET_NUMBER" -R "$REPO" --json comments \
+          | jq --arg bot "$BOT" --arg needle "$NEEDLE" '
+              (.comments.nodes // [])
+              | sort_by(.createdAt)
               | reverse
-              | map(select(.user.login == $bot))
+              | map(select(.author.login == $bot))
               | map(select((.body // "") | contains($needle)))
               | first // {}
             '
         )
 
-        TARGET_COMMENT_ID=$(jq -r '.id // empty' <<<"$COMMENT_JSON")
+        TARGET_COMMENT_ID=$(jq -r '.databaseId // empty' <<<"$COMMENT_JSON")
         if [[ -z "$TARGET_COMMENT_ID" ]]; then
           echo "comment_id=" >> "$GITHUB_ENV"
           exit 0
@@ -97,7 +98,7 @@ runs:
 
         A="https://github.com/$REPO/actions/runs/$RUN_ID"
         F="${EDITED_COMMENT_URL:-https://github.com/$REPO/issues/$TARGET_NUMBER#$NEEDLE}"
-        B="[[F]]($F) [[A]]($A) Thinking..."
+        B="[[FROM]]($F) [[RUN]]($A) Thinking..."
 
         gh issue comment "$TARGET_NUMBER" -R "$REPO" --edit "$TARGET_COMMENT_ID" --body "$B"
         echo "comment_id=$TARGET_COMMENT_ID" >> "$GITHUB_ENV"
