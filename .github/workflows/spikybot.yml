@@ -1,0 +1,16 @@
+name: SpikyBot Code Agent
+
+on:
+  issues: { types: [opened, edited] }
+  issue_comment: { types: [created, edited] }
+  pull_request: { types: [opened, edited] }
+  pull_request_review: { types: [submitted, edited] }
+
+jobs:
+  spikybot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: spikybot/spikybot@main
+        with:
+          codex-token: ${{ secrets.CODEX_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
