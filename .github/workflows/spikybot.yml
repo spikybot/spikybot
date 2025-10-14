@@ -13,4 +13,4 @@ jobs:
       - uses: spikybot/spikybot@main
         with:
           codex-token: ${{ secrets.CODEX_TOKEN }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GH_TOKEN }}
