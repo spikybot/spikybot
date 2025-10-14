@@ -34,6 +34,7 @@ runs:
         SENDER: ${{ github.event.sender.login }}
       run: |
         # Evaluate Run Conditions
+        gh auth status
         BOT=$(gh api user --jq '.login')
         RUN=false
         [[ "$BODY" == *"@$BOT"* ]] && RUN=true
@@ -49,9 +50,8 @@ runs:
         FROM_URL: ${{ github.event.comment.html_url }}
       run: |
         # Initial Comment (new)
-
-        A="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
         F="${FROM_URL:-https://github.com/$GITHUB_REPOSITORY/issues/$NUMBER}"
+        A="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
         B="[[F]]($F) [[A]]($A) Thinking..."
         U=$(gh issue comment "$NUMBER" -R "$GITHUB_REPOSITORY" -b "$B")
         I=${U##*issuecomment-}
