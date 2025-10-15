@@ -1,0 +1,15 @@
+name: Test
+
+on:
+  issues: { types: [opened] }
+  issue_comment: { types: [created] }
+
+jobs:
+  spikybot:
+    runs-on: ubuntu-latest
+    if: ${{ contains(github.event.comment.body || github.event.issue.body || github.event.pull_request.body, 'hello') }}
+    steps:
+      - name: Hello, World
+        shell: bash
+        run: |
+          echo ">>>>>>>> Hello, World!"
