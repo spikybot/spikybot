@@ -10,57 +10,23 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Evaluate Run Conditions
+    - name: Debug all env
       shell: bash
-      env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
-        BODY: ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
-        SENDER: ${{ github.event.sender.login }}
       run: |
-        # Evaluate Run Conditions
-        gh auth status
-        BOT=$(gh api user --jq '.login')
-        RUN=false
-        [[ "$BODY" == *"@$BOT"* ]] && RUN=true
-        [[ "$SENDER" == "$BOT" ]] && RUN=false
-        echo "run=$RUN" >> "$GITHUB_ENV"
-
-    - name: Initial Comment
-      if: ${{ env.run == 'true' }}
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
-        NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
-      run: |
-        # Initial Comment (new)
-        L="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-        B="Thinking... [Run #$GITHUB_RUN_NUMBER]($L)"
-        U=$(gh issue comment "$NUMBER" -R "$GITHUB_REPOSITORY" -b "$B")
-        I=${U##*issuecomment-}
-        echo "comment_id=$I" >> "$GITHUB_ENV"
+        echo "${{ toJSON(github) }}"
 
     - name: Checkout Repository
-      if: ${{ env.run == 'true' }}
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: Install Codex CLI
-      if: ${{ env.run == 'true' }}
       shell: bash
-      run: |
-        # Install Codex CLI
-        npm i -g @openai/codex@latest
+      run: npm i -g @openai/codex@latest
 
     - name: Configure Codex Auth
-      if: ${{ env.run == 'true' }}
       shell: bash
       env:
         CODEX_TOKEN: ${{ inputs.codex-token }}
-      run: |
-        # Configure Codex Auth
-        mkdir -p "$HOME/.codex"
-        echo "$CODEX_TOKEN" | base64 -d > "$HOME/.codex/auth.json"
+      run: mkdir -p "~/.codex" && echo "$CODEX_TOKEN" | base64 -d > "~/.codex/auth.json"
 
     - name: Execute Codex
       if: ${{ env.run == 'true' }}
@@ -68,269 +34,199 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         PROMPT: |
-          # プロンプト構文ガイド
-          # すべての手続きは `def name(arg, ...) { ... }` で宣言し、呼び出し時は `name()` を用いる
-          # 条件分岐は `if (VARIABLE == 'value') { ... }` で記述する
-          # 例外処理は `try { ... } catch (error) { ... }` を使用する
-          # ループは `while (CONDITION == 'true') { ... }` を用いる
-          # 文字列を複数行で渡す場合は `'行1\n行2'` の形式を徹底する
+          ## 0.環境変数(以下の環境変数はコマンド実行時に手動で置き換えること)
+          github=${{ github.repository }}
+          - EVENT_NAME=${{ github.event_name }}
+          - EVENT_ACTION=${{ github.event.action }}
+          - ISSUE_NUMBER=${{ github.event.issue.number }}
+          - PULL_REQUEST_NUMBER=${{ github.event.pull_request.number }}
+          - SESSION_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}
+          - CURRENT_BRANCH=${{ github.ref_name }}
+          - GITHUB_ACTOR=${{ github.actor }}
 
-          # グローバル変数の定義
-          REPOSITORY_SLUG = ${{ github.repository }}
-          EVENT_NAME = ${{ github.event_name }}
-          EVENT_ACTION_TYPE = ${{ github.event.action }}
-          ISSUE_OR_PR_NUMBER = ${{ github.event.issue.number || github.event.pull_request.number }}
-          CURRENT_BRANCH_NAME = ${{ github.ref_name }}
-          RUNNING_ACTOR = ${{ github.actor }}
-          INITIAL_COMMENT_ID = ${{ env.comment_id }}
+          ## 1.準備
+          1.1 前提知識の確認
+          - あなたはGitHubActionsの上で実行されている@spikybotというGitHubのアカウントである
+          - ユーザーの指示に従ってタスクを遂行するAIエージェントである
+          - あなたに可能なアウトプットは"メッセージの返信"と"PRの新規作成"の2種類である
+          - それ以外のアウトプットは廃棄される
+          
+          
+          1.3 追加コンテキストの収集
+          - 上記に加え`gh issue view --comments "$TARGET_NUMBER"
 
-          def getComments() {
-            $ gh issue view ISSUE_OR_PR_NUMBER --comments
-          }
 
-          def postComment(body) {
-            $ gh issue comment ISSUE_OR_PR_NUMBER --body body
-          }
+          - ghコマンドを通じた応答は全てユーザーの言語で行う
+          - GitHub Issue/PR本文とコメント履歴を確認
+          - $ gh issue view <session_number> --comments
+          - ghコマンドを用いたコメント投稿/編集などの書き込みは許可されている（必要に応じて実行する）
+          - 複数行の文字列をコマンドに渡すときは `cat <<'EOF' ... EOF` のヒアドキュメントを用いる
 
-          def updateComment(body) {
-            # INITIAL_COMMENT_ID を使って初回コメントを毎回上書きする方法でユーザーに返答
-            $ gh issue comment ISSUE_OR_PR_NUMBER --edit INITIAL_COMMENT_ID --body body
-          }
+          1.2 メッセージ分類
+          - ユーザーからのプロンプトを元に以下の方針を判断する
+          - 応答: ユーザーの問いに即応する。初回応答は実行しない。セクション2.と3.と4.は何も実行しない。即座に5.報告へ移動する。
+          - 調査: 読み取り中心。初回応答を行う。4.保存を行わない。3.実行の後、即座に5.報告へ移動する。
+          - 実装: 実際の変更を伴う作業。このワークフローの全てを行う。
 
-          def createPullRequest(base, head, title, body) {
-            $ gh pr create --base base --head head --title title --body body
-          }
+          ## 2.初回応答
+          1.3 初回応答とコメントIDの取得
+          - F="${FROM_URL:-https://github.com/$GITHUB_REPOSITORY/issues/$NUMBER}"
+          - A="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          - B="[[FROM]]($F) [[RUN]]($A) Thinking..."
+          - U=$(gh issue comment "$NUMBER" -R "$GITHUB_REPOSITORY" -b "$B")
+          - ID=${U##*issuecomment-}
+          - 以後このIDを使ってコメントを編集する形で投稿する
 
-          def doTask(text) {
-            # 自然言語タスクを表現するプレースホルダー
-          }
 
-          def applyCommonRules() {
-            doTask('変数は大文字で定義し、参照時は `VARIABLE` の形式を取る')
-            doTask('関数呼び出しは必ず括弧付きで記述する（例: `getComments()`）')
-            doTask('関数の引数は `ARGUMENT` 形式で渡す')
-            doTask('複数行の文字列を扱う場合は改行を含む内容を事前に変数へ格納してから渡す')
-          }
+          ## 2.計画(調査と実装の場合に実行)
+          2.1 調査(必要に応じて以下の調査を行う)
+          - 関連するソースコードを入念に観察する
+          - ビルドツールがある場合はその挙動を確認する
+          - ソースコード修正前の時点ではテストがパスしているか確認する
+          - 小さなテストパターンや予備実験を実行して試してみる
 
-          def sessionStatus() {
-            doTask('このセッションはGitHub Actionsの上で実行されている')
-            doTask('あなたは@spikybotというGitHubのアカウントである')
-            doTask('ユーザーからのプロンプトを元に返答言語を決定する')
-            doTask('ghコマンドを通じた応答は全て返答言語で行う')
-            doTask('GitHub Issue/PR本文とコメント履歴を確認する')
-            getComments()
-            doTask('会話履歴であなた(@spikybot)からユーザーの割り込みがあった場合は過去の指示を考慮する')
-            doTask('中断された過去の作業内容は全て破棄されているとみなす')
-            doTask('必要に応じて $ gh コマンドでコメント投稿や編集を行う')
-            doTask('未ログインの場合は環境変数のトークンで認証し、出力にトークン値を表示しない')
-            doTask('複数行の文字列は改行を含む値を変数へ格納してからコマンドへ渡す')
-            doTask('EVENT_ACTION_TYPE が assigned で github.event.assignee.login が spikybot の場合は最新の本文またはコメントを確認し受領コメントを残す')
-            doTask('受領コメントを投稿するときは ACK_BODY を準備して postComment(ACK_BODY) を実行する')
-            doTask('初回コメントのIDは INITIAL_COMMENT_ID に保存されている')
-          }
+          2.2 計画立案
+          - タスク遂行のプランを深く考えてTODOリストを用いて設計する
+          - 大量の処理や大規模な変更、難易度が高い実装は検証可能な小さなタスクに分割する
+          - 必要に応じて2.1調査に戻って調査を再開する
+          - このタスクの影響範囲についてもこの段階で計画する
 
-          def classifyMessage() {
-            doTask('ユーザーからのプロンプトを解析して MODE に方針を格納する')
-            doTask('MODE には response、investigation、implementation のいずれかを設定する')
-          }
+          2.3 計画断念の検討
+          - 指示の曖昧さやタスクの難易度によってタスクが遂行可能か判断する
+          - 遂行不能と判断した場合は即座に5.報告へ移動する
+          - 遂行不能の場合は必ず5.報告で代案を募るか、追加の指示を仰ぐ
+          - 遂行の確度が低い場合は実際に3.実行を行った後に断念を判断しても良い
 
-          def planning() {
-            PLAN_FEASIBLE = 'true'
-            planningInvestigation()
-            planningDesign()
-            planningAbortCheck()
-            if (PLAN_FEASIBLE == 'true') {
-              planningProgressUpdate()
-            }
-          }
+          2.4 経過報告
+          - 計画が遂行可能と判断の場合は経過報告を行う
+          - ここで可能であれば計画で作成したTODOをユーザーに報告する
+          - 詳細の文脈は省略しても良い
+          - 以下の本文を適宜変更し、初回コメントを `jq -n --arg body ... | gh api ... --method PATCH --input -` で上書きする
+          - |
+            $ jq -n --arg body $'現在のタスク状況は以下の通りです\n1. ...' '{body:$body}' \
+              | gh api repos/${REPO_SLUG}/issues/comments/<comment_id> --method PATCH --input -
 
-          def planningInvestigation() {
-            doTask('関連するソースコードを入念に観察する')
-            doTask('ビルドツールがある場合はその挙動を確認する')
-            doTask('ソースコード修正前の時点でテストがパスしているか確認する')
-            doTask('小さなテストパターンや予備実験を実行して挙動を確かめる')
-          }
+          ## 3. 実行(調査と実装の場合に実行)
+          3.1 タスク選択
+          - TODOリストの中から1件ずつ順番に次に実行するタスクを選択
+          - 原則として次に実行可能な1つだけを選択し、複数選択しない
 
-          def planningDesign() {
-            doTask('タスク遂行のプランを深く考え TODO リストを用いて設計する')
-            doTask('大規模な変更や難易度が高い実装は検証可能な小さなタスクに分割する')
-            doTask('必要に応じて planningInvestigation() を再度実行して追加調査を行う')
-            doTask('タスクの影響範囲をこの段階で明確にする')
-          }
+          3.2 タスク実行
+          - タスク選択で取り出したタスクの1つのみを実行
+          - 調査の場合、Readタスクのみ実行可能(プロジェクト確認、Web検索、環境確認)
+          - 実装の場合、必要なコマンドの全てを実行可能(編集、生成、コマンド実行、リファクタ等)
+          - ユーザーのプロンプトの指示に忠実に従ってタスクを遂行する
+          - タスクの途中か完了したあとで新たに必要なTODOが見つかった場合はTODOに追加する
+          - 画像に文字が含まれる場合は以下を徹底する
+            - `gh api` などで添付画像の署名付きURLを取得し、`curl -L -o /tmp/<session_number>_image.<ext> <url>` でダウンロードする
+            - `view_image` などの手段で画像を開き、あなた自身が目視で内容を確認する
+            - OCRや画像解析ツールは使用禁止
 
-          def planningAbortCheck() {
-            doTask('指示の曖昧さやタスクの難易度を踏まえて遂行可能か判断する')
-            doTask('遂行不能と判断した場合は PLAN_FEASIBLE に false を設定する')
-            doTask('遂行不能時は reporting() で代案を募るか追加指示を仰ぐ準備をする')
-            doTask('遂行の確度が低い場合は execution() の結果を踏まえて最終判断する')
-          }
+          3.3 エラーハンドリング
+          - エラーの場合とは、指示が曖昧な点、自力解決不能なエラー、実装困難なタスクが発見された場合
+          - エラーの場合に限り、以下を実行する
+          - 3.実行を終了する。残りのタスクを実行しない
+          - ユーザーがデバッグを継続するための追加情報の収集は可能
+          - 4.保存に移動し、現在の状況を新規ブランチに保存する
+          - 5.報告では現在の状況と完了済みタスク、残りのタスクについても説明する
+          - エラーログや質問内容はできるだけ加工せずそのまま報告に含める
 
-          def planningProgressUpdate() {
-            doTask('計画が遂行可能な場合は経過報告を行う')
-            doTask('可能であれば計画で作成した TODO をユーザーに共有する')
-            doTask('必要に応じて詳細の文脈を省略しても良い')
-            # 経過報告テンプレート
-            STATUS_BODY = $'現在のタスク状況は以下の通りです\n1. ...'
-            updateComment(STATUS_BODY)
-          }
+          3.4 経過報告
+          - 現在の状況を初回応答のコメントを上書き編集する形で報告を行う
+          - |
+            $ jq -n --arg body $'現在のタスク状況は以下の通りです\n1. ...' '{body:$body}' \
+              | gh api repos/${REPO_SLUG}/issues/comments/<comment_id> --method PATCH --input -
+          - 経過報告はタスクを1つ完了するか失敗する毎に上書き編集して更新する
+          - この際に、過去の完了済みタスクが見えなくならないように、2.4の経過報告の文章を適宜編集する形を取る
 
-          def execution() {
-            ERROR_DETECTED = 'false'
-            NEXT_TASK_AVAILABLE = 'true'
-            while (NEXT_TASK_AVAILABLE == 'true') {
-              selectTask()
-              try {
-                executeTask()
-              } catch (ERROR_DETAIL) {
-                ERROR_DETECTED = 'true'
-                ERROR_INFO = ERROR_DETAIL
-              }
-              handleErrors()
-              if (ERROR_DETECTED == 'true') {
-                break
-              }
-              updateProgressDuringRun()
-              iterateTasks()
-            }
-          }
+          3.5 タスク実行の反復
+          - タスクが1つ正常完了した場合、3.1に戻って次のタスク選択を行う
+          - 全てのタスクが完了するまで、3.1~3.4を順番に反復する
 
-          def selectTask() {
-            doTask('TODO リストから次に実行するタスクを 1 件だけ選択する')
-            doTask('同時に複数のタスクを選択しない')
-          }
+          ## 4. 保存(実装の場合のみ実行)
+          4.1 ブランチの新規作成
+          - 現在のブランチ名を確認
+          - 現在のevent_name=${{ github.event_name }}がissuesの場合は新規ブランチを作成
+          - ブランチ名は必ず"spikybot/xxxxxx"とする。ここでxxxxxxはこのタスクの簡潔な説明
+          - 現在のevent_name=${{ github.event_name }}がpull_requestの場合はこのブランチをそのまま使う
+          - ただしこのブランチ名が明らかに不適切な場合やPRの内容にそぐわない場合は新規ブランチ作成
 
-          def executeTask() {
-            doTask('選択したタスクを一つだけ実行する')
-            doTask('調査ではリード系タスクのみ実行する')
-            doTask('実装では編集や生成、コマンド実行、リファクタなど必要な処理を行う')
-            doTask('ユーザーの指示に忠実に従ってタスクを遂行する')
-            doTask('タスク途中や完了後に必要な TODO が見つかった場合はリストへ追加する')
-            doTask('画像に文字が含まれる場合は署名付き URL を取得し目視で内容を確認する')
-          }
+          4.2 コミット
+          - 現在の変更済みファイル一覧などを確認
+          - 変更された各ファイルに対して個別にgit add filenameを行う
+          - 危険なオプション(git add ., git add -A, --all)は禁止
+          - 多くのプロジェクトで.gitignoreは採用されていない可能性がある
+          - 一時ファイル、ゴミファイル、ビルド結果、関連のないファイルの追加を避ける
+          - もう一度状況を確認し、問題がなければコミットを行う
 
-          def handleErrors() {
-            if (ERROR_DETECTED == 'true') {
-              doTask('ユーザーがデバッグを継続できるよう追加情報を収集する')
-              doTask('reporting() で現在の状況と完了済みタスク、残りのタスクを説明する')
-              doTask('エラーログや質問内容は加工せずそのまま報告に含める')
-            }
-          }
+          4.2 プッシュ(実装の場合のみ実行)
+          - 現在のコミットをプッシュする
 
-          def updateProgressDuringRun() {
-            doTask('現在の状況を初回応答コメントの上書きとして報告する')
-            # 状況更新テンプレート
-            STATUS_BODY = $'現在のタスク状況は以下の通りです\n1. ...'
-            updateComment(STATUS_BODY)
-            doTask('タスクを完了または失敗するたびに経過報告を更新する')
-            doTask('過去の完了済みタスクが見えなくならないよう報告文を追記編集する')
-          }
+          4.3 プルリクエストの作成/更新(実装の場合のみ実行)
+          - 条件: event_name=${{ github.event_name }}が'issues'かつ新規実装やファイル変更がある場合のみ新規PR
+          - 条件: event_name=${{ github.event_name }}が'pull_request'の場合は新規PR禁止、既存PRへのcommit&pushのみ
+          - タイトル: セッション番号と作業内容を含める(例: "#123 XXX修正")
+          - 説明: 目的と変更内容を記載
+          - Issue完了時: PRの説明文末尾に 'close #<session_number>'と記述
+          - ブランチ名が"spikybot/xxxxxx"の場合は以下の通り
+          - |
+            gh pr create --base "spikybot/xxxxxx" --title "#123 Add new feature" --body "$(cat <<'EOF'
+            This adds a new feature.
+            説明...
+            説明...
+            EOF
+            )"
 
-          def iterateTasks() {
-            doTask('タスク完了状況を評価し、次に実行するタスクの有無を判定する')
-            doTask('結果を NEXT_TASK_AVAILABLE に true または false として格納する')
-          }
-
-          def saving() {
-            prepareBranch()
-            commitChanges()
-            pushChanges()
-            updatePullRequest()
-          }
-
-          def prepareBranch() {
-            doTask('現在のブランチ名を確認する')
-            doTask('EVENT_NAME が issues の場合は新規ブランチを作成する')
-            doTask('ブランチ名は "spikybot/xxxxxx" 形式にする')
-            doTask('EVENT_NAME が pull_request の場合は既存ブランチを維持する')
-            doTask('ブランチ名が不適切な場合は内容に適した新しいブランチを作成する')
-          }
-
-          def commitChanges() {
-            doTask('現在の変更済みファイルを確認する')
-            doTask('変更された各ファイルに対して個別に git add filename を実行する')
-            doTask('git add ., git add -A, --all などの危険なオプションは使用しない')
-            doTask('不要なファイルや生成物をコミット対象に含めない')
-            doTask('最終確認を行い問題が無ければコミットする')
-          }
-
-          def pushChanges() {
-            doTask('現在のコミットをリモートへプッシュする')
-          }
-
-          def updatePullRequest() {
-            doTask('EVENT_NAME が issues で変更がある場合のみ新規 PR を作成する')
-            doTask('EVENT_NAME が pull_request の場合は新規 PR を作らず既存 PR を更新する')
-            doTask('PR タイトルにはセッション番号と作業内容を含める')
-            doTask('PR 説明には目的と変更内容を記載する')
-            doTask('Issue 完了時は PR 説明末尾に close #<ISSUE_OR_PR_NUMBER> を追記する')
-            # PR 作成テンプレート
-            BASE_BRANCH = 'main'
-            HEAD_BRANCH = 'spikybot/xxxxxx'
-            PR_TITLE = '#123 Add new feature'
-            PR_BODY = $'This adds a new feature.\n説明...\n説明...'
-            createPullRequest(BASE_BRANCH, HEAD_BRANCH, PR_TITLE, PR_BODY)
-          }
-
-          def reporting() {
-            doTask('INITIAL_COMMENT_ID のコメントを上書き編集して最終報告を行う')
-            doTask('応答では自然な文章を生成し先頭に @RUNNING_ACTOR を付けて送信する')
-            # 報告テンプレート
-            REPORT_BODY = '@' + RUNNING_ACTOR + ' 生成した短い回答'
-            updateComment(REPORT_BODY)
-            doTask('調査の場合は調査範囲・方法・結果・根拠・次の推奨アクションを要約する')
-            doTask('実装の場合は作業要約、実行コマンドと結果、作成・修正ファイル、エラーと対処、作成した PR 番号を報告する')
-            doTask('エラーが発生している場合は内容・原因予想・解決案・完了タスクと残りのタスクを記載する')
-            doTask('どの方針でも最終報告を必ず実施して終了する')
-          }
-
-          def loadUserPayload() {
-            doTask('Issue または PR の本文を ISSUE_BODY に格納する')
-            ISSUE_BODY = ${{ github.event.issue.body || github.event.pull_request.body }}
-            doTask('最新のコメント本文を COMMENT_BODY に格納する')
-            COMMENT_BODY = ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
-          }
-
-          def main() {
-            applyCommonRules()
-            sessionStatus()
-            loadUserPayload()
-            classifyMessage()
-            if (MODE == 'response') {
-              reporting()
-              return
-            }
-            planning()
-            if (PLAN_FEASIBLE != 'true') {
-              reporting()
-              return
-            }
-            execution()
-            if (MODE == 'investigation') {
-              reporting()
-              return
-            }
-            if (ERROR_DETECTED == 'true') {
-              reporting()
-              return
-            }
-            saving()
-            reporting()
-          }
-
-          main()
-
+          ## 5. 報告
+          - 初回応答で取得した <comment_id> のコメントを上書き編集して最終報告を行う
+          - 応答: 生成した回答（自然な文章・機械的定型文は避ける）を先頭に"@<github_actor> "を付けてそのまま送信する
+          - 例: `jq -n --arg body "@<github_actor> <生成した短い回答>" '{body:$body}' | gh api repos/${REPO_SLUG}/issues/comments/<comment_id> --method PATCH --input -`
+          - 調査: 調査範囲・方法・結果・根拠・次の推奨アクションなどを必要に応じて要約して報告
+          - 実装: 作業要約、実行コマンドと結果、作成・修正ファイル、エラーと対処、作成したPR番号（該当時）を報告
+          - 実行の3.3エラー発生時: エラーの内容、原因予想、解決案、完了タスクと残りのタスクを報告
+          - 最終報告はどの分岐でも必ず行われる
+          - 終了
+          # ユーザーからの指示
+          ## ============== Issue || PRのタイトル =================
+          ${{ github.event.issue.title || github.event.pull_request.title }}
+          ## ================= Issue || PRの本文 ==================
+          ${{ github.event.issue.body || github.event.pull_request.body }}
+          ## =============== ユーザーからのコメント ===============
+          ${{ github.event.comment.body || github.event.issue.body || github.event.pull_request.body }}
+          ## =============== ユーザーからの指示以上 ===============
       run: |
-        # Execute Codex
         echo "$PROMPT" | codex exec -c "shell_environment_policy.ignore_default_excludes=true" --dangerously-bypass-approvals-and-sandbox
+
+          ### 関数ユーティリティ
+          ```bash
+          UPDATE-COMMENT(target_comment_id, updated_body) {
+            gh issue comment "$TARGET_NUMBER" --edit target_comment_id --body updated_body
+          }
+          # 例: UPDATE-COMMENT "$ACK_COMMENT_ID" "Thinking... [Run]($run_url)"
+
+          COMMENT(message_body) {
+            gh issue comment "$TARGET_NUMBER" --body message_body
+          }
+          # 例: COMMENT "作業を開始します"
+
+          PR-CREATE(base_branch, head_branch, pr_title, pr_body) {
+            gh pr create --base base_branch --head head_branch --title pr_title --body pr_body
+          }
+          # 例: PR-CREATE "main" "spikybot/task" "#123 対応" "変更点の要約"
+
+          GET-COMMENTS() {
+            gh issue comment list "$TARGET_NUMBER" --json id,author,body,createdAt --jq '.[]'
+          }
+          # 例: GET-COMMENTS
+          ```
 
     - name: Handle Errors
       if: failure()
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        TARGET_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
       run: |
-        # Handle Errors
         L="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
         B="@$GITHUB_ACTOR An error has occurred [Run #$GITHUB_RUN_NUMBER]($L)"
-        gh issue comment "$NUMBER" -R "$GITHUB_REPOSITORY" -b "$B"
+        gh issue comment "$TARGET_NUMBER" -R "$GITHUB_REPOSITORY" -b "$B"
