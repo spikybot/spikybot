@@ -158,7 +158,7 @@ runs:
           - 必要に応じて最終報告の前に再度コンテキストの再確認を行う
           - 最終報告は改行可能なマークダウン形式(GitHub準拠)
           - 箇条書きの後に文字を入れる場合は必ず1行の空行が必要(マークダウンの制約)
-          - $ gh issue comment "{{issue_number}}" --repo "{{owner/repository}}" --edit "{{comment_id}}" --body $'@{{GITHUB_ACTOR}} 生成した\n報告全文'
+          - $ gh issue comment "{{issue_number}}" --repo "{{owner/repository}}" --edit "{{comment_id}}" --body $'@{{GITHUB_ACTOR}} 作業が完了しました。\n\n生成した報告全文'
           - 最終報告の本文には以下の要素を必ずすべて含める
           - 応答の場合: 生成した回答（自然な文章・機械的定型文は避ける）を先頭に"@$GITHUB_ACTOR "を付けてそのまま送信する
           - 調査の場合: 調査範囲・方法・結果・根拠・次の推奨アクションなどを必要に応じて要約して報告
