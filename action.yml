@@ -1,32 +1,13 @@
 name: 'Spikybot Code Agent'
 description: 'Autonomous coding agent running on GitHub Actions with Codex CLI'
-inputs:
-  codex-token:
-    description: 'Codex Auth Token'
-    required: true
-  github-token:
-    description: 'GitHub Token'
-    required: true
 runs:
   using: 'composite'
   steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
-
-    - name: Install Codex CLI
-      shell: bash
-      run: npm i -g @openai/codex@latest
-
-    - name: Configure Codex Auth
-      shell: bash
-      env:
-        CODEX_TOKEN: ${{ inputs.codex-token }}
-      run: mkdir -p "$HOME/.codex" && echo "$CODEX_TOKEN" | base64 -d > "$HOME/.codex/auth.json"
-
     - name: Execute Codex
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
         PROMPT: |
           ## 1.準備
           1.1 前提知識の確認
@@ -180,7 +161,6 @@ runs:
       if: failure()
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
         issue_number: ${{ github.event.issue.number || github.event.pull_request.number }}
       run: |
         L="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
